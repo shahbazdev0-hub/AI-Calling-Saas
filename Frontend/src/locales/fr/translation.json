@@ -1,0 +1,97 @@
+{
+  "hero": {
+    "headline": "Agents Vocaux IA pour Appels Téléphoniques Automatisés",
+    "subheadline": "Créez, déployez et développez des agents vocaux humains pour la voix, les emails, les SMS, le chat et les réseaux sociaux.",
+    "bookDemo": "Réserver une Démo",
+    "getStarted": "Commencer"
+  },
+  "showcase": {
+    "title": "Découvrez l'IA Vocale en Action",
+    "playAudio": "Jouer l'Échantillon Vocal IA",
+    "channels": "Supporte la voix, les SMS, les emails, le chat et les réseaux sociaux",
+    "chatWidget": "Widget de Chat pour Site Web (Aperçu Statique)"
+  },
+  "features": {
+    "title": "Fonctionnalités Clés",
+    "voice": "IA Vocale pour les Appels",
+    "voiceDesc": "Gérez les appels entrants et sortants avec une latence inférieure à 500ms.",
+    "messaging": "Messagerie Alimentée par l'IA",
+    "messagingDesc": "Automatisez les communications par SMS et email.",
+    "chatbot": "Chatbot pour Site Web",
+    "chatbotDesc": "Engagez les visiteurs avec un widget de chat alimenté par l'IA.",
+    "integrations": "Intégrations CRM",
+    "integrationsDesc": "Intégration fluide avec Jobber, Salesforce et plus.",
+    "multilingual": "Support Multilingue",
+    "multilingualDesc": "Support pour l'anglais, le français et plus de 30 langues."
+  },
+  "useCases": {
+    "title": "Cas d'Utilisation",
+    "sales": "Équipes de Vente",
+    "salesDesc": "Initiez des appels sortants, qualifiez les prospects et transmettez les leads à fort potentiel.",
+    "salesCta": "Utilisez notre IA de Vente",
+    "support": "Support Client",
+    "supportDesc": "Résolvez les problèmes courants et fournissez une assistance 24/7.",
+    "supportCta": "Rencontrez votre Assistant de Support",
+    "smallBusiness": "Petites Entreprises",
+    "smallBusinessDesc": "Disponibilité 24/7 sans personnel supplémentaire.",
+    "smallBusinessCta": "Découvrez l'IA pour Petites Entreprises"
+  },
+  "pricing": {
+    "title": "Tarification",
+    "starter": "Starter",
+    "pro": "Pro",
+    "enterprise": "Entreprise",
+    "selectTier": "Sélectionner le niveau de tarification",
+    "selectStarter": "Sélectionner le Plan Starter",
+    "selectPro": "Sélectionner le Plan Pro",
+    "selectEnterprise": "Sélectionner le Plan Entreprise"
+  },
+  "demoForm": {
+    "title": "Réserver une Démo",
+    "name": "Nom",
+    "businessName": "Nom de l'Entreprise",
+    "email": "Email",
+    "phone": "Numéro de Téléphone",
+    "description": "Description de l'Entreprise",
+    "submit": "Soumettre",
+    "nameRequired": "Le nom est requis",
+    "businessNameRequired": "Le nom de l'entreprise est requis",
+    "emailRequired": "L'email est requis",
+    "emailInvalid": "Email invalide",
+    "phoneRequired": "Le numéro de téléphone est requis",
+    "descriptionRequired": "La description de l'entreprise est requise"
+  },
+  "testimonials": {
+    "title": "Approuvé par les Meilleures Équipes",
+    "medbelle": "La plateforme est incroyablement conviviale et polyvalente. Que ce soit pour gérer les demandes de support ou planifier des rendez-vous.",
+    "smartcat": "Les agents vocaux IA nous aident à réserver plus de démos rapidement. Nous avons augmenté les taux de conversion de 24% sur les appels répondus.",
+    "collins": "Je peux maintenant contacter plus de personnes en quelques minutes, ce qui me fait gagner des heures de temps passé au téléphone."
+  },
+  "footer": {
+    "linksTitle": "Explorer",
+    "about": "À Propos",
+    "features": "Fonctionnalités",
+    "pricing": "Tarification",
+    "blog": "Blog",
+    "careers": "Carrières",
+    "socialTitle": "Connectez-vous",
+    "twitter": "Twitter",
+    "linkedin": "LinkedIn",
+    "instagram": "Instagram",
+    "legalTitle": "Légal",
+    "copyright": "© 2025 CallCenter Pro. Tous droits réservés.",
+    "terms": "Conditions d'Utilisation",
+    "privacy": "Politique de Confidentialité"
+  },
+  "contact": {
+    "title": "Contactez-Nous",
+    "inquiry": "Envoyer une Demande",
+    "message": "Message",
+    "support": "Support:"
+  },
+  "language": {
+    "en": "English",
+    "fr": "Français",
+    "switch": "Changer de langue"
+  }
+}

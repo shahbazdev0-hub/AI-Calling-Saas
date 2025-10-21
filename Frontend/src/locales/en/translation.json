@@ -1,0 +1,97 @@
+{
+  "hero": {
+    "headline": "AI Voice Agents for Automated Phone Calls",
+    "subheadline": "Create, deploy, and scale human-like voice agents for voice, email, text, chat, and social media.",
+    "bookDemo": "Book a Demo",
+    "getStarted": "Get Started"
+  },
+  "showcase": {
+    "title": "Hear Voice AI in Action",
+    "playAudio": "Play AI Voice Sample",
+    "channels": "Supports voice, SMS, email, chat, and social media",
+    "chatWidget": "Website Chatbot Widget (Static Preview)"
+  },
+  "features": {
+    "title": "Key Features",
+    "voice": "Voice AI for Calls",
+    "voiceDesc": "Handle inbound and outbound calls with less than 500ms latency.",
+    "messaging": "AI-Powered Messaging",
+    "messagingDesc": "Automate text and email communications.",
+    "chatbot": "Website Chatbot",
+    "chatbotDesc": "Engage visitors with an AI-powered chat widget.",
+    "integrations": "CRM Integrations",
+    "integrationsDesc": "Seamless integration with Jobber, Salesforce, and more.",
+    "multilingual": "Multilingual Support",
+    "multilingualDesc": "Support for English, French, and 30+ languages."
+  },
+  "useCases": {
+    "title": "Use Cases",
+    "sales": "Sales Teams",
+    "salesDesc": "Initiate outbound calls, qualify prospects, and pass high-intent leads.",
+    "salesCta": "Use our Sales AI",
+    "support": "Customer Support",
+    "supportDesc": "Resolve common issues and provide 24/7 assistance.",
+    "supportCta": "Meet your Support Assistant",
+    "smallBusiness": "Small Businesses",
+    "smallBusinessDesc": "24/7 availability without extra staff.",
+    "smallBusinessCta": "Explore Small Business AI"
+  },
+  "pricing": {
+    "title": "Pricing",
+    "starter": "Starter",
+    "pro": "Pro",
+    "enterprise": "Enterprise",
+    "selectTier": "Select pricing tier",
+    "selectStarter": "Select Starter Plan",
+    "selectPro": "Select Pro Plan",
+    "selectEnterprise": "Select Enterprise Plan"
+  },
+  "demoForm": {
+    "title": "Book a Demo",
+    "name": "Name",
+    "businessName": "Business Name",
+    "email": "Email",
+    "phone": "Phone Number",
+    "description": "Business Description",
+    "submit": "Submit",
+    "nameRequired": "Name is required",
+    "businessNameRequired": "Business name is required",
+    "emailRequired": "Email is required",
+    "emailInvalid": "Invalid email",
+    "phoneRequired": "Phone number is required",
+    "descriptionRequired": "Business description is required"
+  },
+  "testimonials": {
+    "title": "Trusted by Leading Teams",
+    "medbelle": "The platform is incredibly user-friendly and versatile. Whether it's for handling customer support queries or managing appointments.",
+    "smartcat": "Voice AI Agents help us book more demos faster. We increased conversion rates by 24% in answered calls.",
+    "collins": "I can now reach out to more people in minutes, saving me hours of time spent on the phone."
+  },
+  "footer": {
+    "linksTitle": "Explore",
+    "about": "About",
+    "features": "Features",
+    "pricing": "Pricing",
+    "blog": "Blog",
+    "careers": "Careers",
+    "socialTitle": "Connect",
+    "twitter": "Twitter",
+    "linkedin": "LinkedIn",
+    "instagram": "Instagram",
+    "legalTitle": "Legal",
+    "copyright": "© 2025 CallCenter Pro. All rights reserved.",
+    "terms": "Terms of Service",
+    "privacy": "Privacy Policy"
+  },
+  "contact": {
+    "title": "Contact Us",
+    "inquiry": "Send an Inquiry",
+    "message": "Message",
+    "support": "Support:"
+  },
+  "language": {
+    "en": "English",
+    "fr": "Français",
+    "switch": "Switch language"
+  }
+}

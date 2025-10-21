@@ -1,0 +1,117 @@
+/* 
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: Poppins, sans-serif;
+  @apply bg-gray-50 text-gray-900;
+}
+section {
+  @apply relative z-0;
+}
+
+
+input[type="range"] {
+  @apply w-full h-2 bg-gray-300 rounded-lg appearance-none cursor-pointer;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  @apply w-5 h-5 bg-purple-600 rounded-full appearance-none shadow-sm;
+}
+
+input[type="range"]::-moz-range-thumb {
+  @apply w-5 h-5 bg-purple-600 rounded-full appearance-none shadow-sm;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  @apply bg-gray-300 rounded-lg h-2;
+}
+
+input[type="range"]::-moz-range-track {
+  @apply bg-gray-300 rounded-lg h-2;
+}
+
+h1, h2, h3, p {
+  @apply text-gray-900;
+}
+
+button {
+  @apply focus:outline-none focus:ring-2 focus:ring-purple-600;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+footer h3 {
+  color: #ffffff;
+} */
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Using the new palette for body and text */
+body {
+  font-family: Poppins, sans-serif;
+  /* Updated to use the new light background color */
+  @apply bg-background text-gray-900;
+}
+
+section {
+  @apply relative z-0;
+}
+
+/* Updated input range slider thumb to use the new primary accent color */
+input[type="range"] {
+  @apply w-full h-2 bg-gray-300 rounded-lg appearance-none cursor-pointer;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  /* Changed from bg-purple-600 to bg-primary-600 (Dark Teal) */
+  @apply w-5 h-5 bg-primary-600 rounded-full appearance-none shadow-sm;
+}
+input[type="range"]::-moz-range-thumb {
+  /* Changed from bg-purple-600 to bg-primary-600 (Dark Teal) */
+  @apply w-5 h-5 bg-primary-600 rounded-full appearance-none shadow-sm;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  @apply bg-gray-300 rounded-lg h-2;
+}
+input[type="range"]::-moz-range-track {
+  @apply bg-gray-300 rounded-lg h-2;
+}
+
+h1, h2, h3, p {
+  @apply text-gray-900;
+}
+
+/* Updated button focus ring to use the new primary accent color */
+button {
+  /* Changed from focus:ring-purple-600 to focus:ring-primary-600 (Dark Teal) */
+  @apply focus:outline-none focus:ring-2 focus:ring-primary-600;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* Footer color remains white for h3, assuming a dark footer background */
+footer h3 {
+  color: #ffffff;
+}
+/* Hide scrollbar for Chrome, Safari, and Edge */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for Firefox */
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
