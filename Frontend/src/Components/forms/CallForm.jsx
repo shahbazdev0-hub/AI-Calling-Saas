@@ -264,12 +264,12 @@ const CallForm = ({ onSuccess }) => {
         <Input
           {...register('phoneNumber')}
           type="tel"
-          placeholder="+923208518724 or 03208518724"
+          placeholder="XXX XXX XXXX or +1 XXX XXX XXXX"
           error={errors.phoneNumber?.message}
           icon={<Phone size={18} className="text-gray-400" />}
         />
         <p className="mt-1 text-xs text-gray-500">
-          Enter Pakistani number (03XX) or international format (+92XXX)
+          Enter US number (XXX) or international format (+1XXX)
         </p>
       </div>
 

@@ -853,7 +853,7 @@ const Dashboard = () => {
       )
     },
     { 
-      name: 'Email Campaigns', 
+      name: 'AI Campaign Builder', 
       href: '/dashboard/campaigns', 
       icon: (props) => (
         <svg {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24">

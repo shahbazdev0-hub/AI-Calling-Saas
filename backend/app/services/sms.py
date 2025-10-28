@@ -1,4 +1,4 @@
-# backend/app/services/sms.py - MILESTONE 3 FIXED
+# backend/app/services/sms.py - COMPLETE FIXED VERSION
 
 import os
 from typing import List, Optional, Dict, Any
@@ -43,6 +43,7 @@ class SMSService:
                 self.default_from = phone_number
                 self._is_configured = True
                 logger.info("✅ SMS Service: Twilio configured")
+                logger.info(f"📱 SMS From Number: {phone_number}")
             else:
                 logger.warning("⚠️ SMS Service: Twilio not configured - SMS will be disabled")
                 self._is_configured = False
@@ -56,7 +57,6 @@ class SMSService:
     
     async def get_db(self):
         """Get database connection"""
-        # ✅ FIX: Change from `if not self.db:` to `if self.db is None:`
         if self.db is None:
             self.db = await get_database()
         return self.db
@@ -69,11 +69,23 @@ class SMSService:
         user_id: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """Send SMS message"""
+        """
+        Send SMS message
+        
+        Args:
+            to_number: Recipient phone number
+            message: SMS message content
+            from_number: Sender phone number (optional)
+            user_id: User ID (optional)
+            metadata: Additional metadata (optional)
+            
+        Returns:
+            Dict with success status and details
+        """
         
         # Check if configured
         if not self._is_configured:
-            logger.warning("SMS Service not configured - skipping SMS send")
+            logger.warning("⚠️ SMS Service not configured - skipping SMS send")
             return {
                 "success": False,
                 "error": "SMS service not configured. Please set up Twilio credentials."
@@ -82,12 +94,18 @@ class SMSService:
         try:
             from_number = from_number or self.default_from
             
+            logger.info(f"📱 Sending SMS to {to_number}")
+            logger.info(f"   From: {from_number}")
+            logger.info(f"   Message: {message[:50]}...")
+            
             # Send via Twilio
             twilio_message = self.client.messages.create(
                 body=message,
                 from_=from_number,
                 to=to_number
             )
+            
+            logger.info(f"✅ SMS sent successfully! SID: {twilio_message.sid}")
             
             # Save to database
             db = await self.get_db()
@@ -117,6 +135,8 @@ class SMSService:
             }
             
         except TwilioRestException as e:
+            logger.error(f"❌ Twilio SMS Error: {e.code} - {e.msg}")
+            
             # Save failed attempt
             db = await self.get_db()
             await db.sms_messages.insert_one({
@@ -134,111 +154,92 @@ class SMSService:
             
             return {
                 "success": False,
-                "error": str(e.msg),
+                "error": f"Twilio Error {e.code}: {e.msg}",
                 "error_code": e.code
             }
+            
         except Exception as e:
-            logger.error(f"Error sending SMS: {e}")
+            logger.error(f"❌ Error sending SMS: {str(e)}")
+            
             return {
                 "success": False,
-                "error": str(e)
+                "error": f"Failed to send SMS: {str(e)}"
             }
     
     async def send_bulk_sms(
         self,
         to_numbers: List[str],
         message: str,
-        user_id: str,
         from_number: Optional[str] = None,
-        batch_size: int = 25,
-        campaign_id: Optional[str] = None
+        user_id: Optional[str] = None,
+        batch_size: int = 25
     ) -> Dict[str, Any]:
         """Send bulk SMS messages"""
+        
+        if not self._is_configured:
+            return {
+                "success": False,
+                "error": "SMS service not configured"
+            }
+        
         results = {
             "total": len(to_numbers),
             "sent": 0,
             "failed": 0,
-            "results": []
+            "errors": []
         }
         
-        # Process in batches
-        for i in range(0, len(to_numbers), batch_size):
-            batch = to_numbers[i:i + batch_size]
+        for to_number in to_numbers:
+            result = await self.send_sms(
+                to_number=to_number,
+                message=message,
+                from_number=from_number,
+                user_id=user_id
+            )
             
-            for number in batch:
-                result = await self.send_sms(
-                    to_number=number,
-                    message=message,
-                    from_number=from_number,
-                    user_id=user_id,
-                    metadata={"campaign_id": campaign_id} if campaign_id else None
-                )
-                
-                if result["success"]:
-                    results["sent"] += 1
-                else:
-                    results["failed"] += 1
-                
-                results["results"].append({
-                    "to_number": number,
-                    "success": result["success"],
-                    "sms_id": result.get("sms_id"),
+            if result.get("success"):
+                results["sent"] += 1
+            else:
+                results["failed"] += 1
+                results["errors"].append({
+                    "to_number": to_number,
                     "error": result.get("error")
                 })
         
-        return results
+        return {
+            "success": True,
+            "results": results
+        }
     
-    async def get_sms_messages(
+    async def get_sms_list(
         self,
         user_id: str,
         skip: int = 0,
         limit: int = 50,
-        status: Optional[str] = None,
-        direction: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """Get SMS messages for user"""
+        direction: Optional[str] = None,
+        status: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Get list of SMS messages"""
         db = await self.get_db()
         
         query = {"user_id": user_id}
-        if status:
-            query["status"] = status
+        
         if direction:
             query["direction"] = direction
+        if status:
+            query["status"] = status
         
-        # Get total count
-        total = await db.sms_messages.count_documents(query)
-        
-        # Get messages
         cursor = db.sms_messages.find(query).sort("created_at", -1).skip(skip).limit(limit)
         messages = await cursor.to_list(length=limit)
         
-        # Convert ObjectId to string
+        # Format messages
         for msg in messages:
             msg["_id"] = str(msg["_id"])
         
-        return {
-            "messages": messages,
-            "total": total,
-            "page": skip // limit + 1,
-            "page_size": limit
-        }
+        return messages
     
-    async def get_sms_by_id(self, sms_id: str, user_id: str) -> Optional[Dict[str, Any]]:
-        """Get SMS by ID"""
-        db = await self.get_db()
-        
-        sms = await db.sms_messages.find_one({
-            "_id": ObjectId(sms_id),
-            "user_id": user_id
-        })
-        
-        if sms:
-            sms["_id"] = str(sms["_id"])
-        
-        return sms
-    
-    async def get_sms_stats(self, user_id: str) -> Dict[str, Any]:
-        """Get SMS statistics for user"""
+    async def get_sms_stats(self, user_id: str) -> Dict[str, int]:
+        """Get SMS statistics"""
         db = await self.get_db()
         
         # Total counts

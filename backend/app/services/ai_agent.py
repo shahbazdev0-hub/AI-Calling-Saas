@@ -1,14 +1,16 @@
-# backend/app/services/ai_agent.py - COMPLETE FIXED VERSION
+# backend/app/services/ai_agent.py - COMPLETE VERSION WITH IMPROVED GREETINGS
 
 import os
 import json
 import logging
+import re
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 from openai import AsyncOpenAI
 from bson import ObjectId
 
 from app.database import get_database
+from app.services.workflow_engine import workflow_engine
 
 logger = logging.getLogger(__name__)
 
@@ -17,45 +19,53 @@ class AIAgentService:
     """AI Agent Service for handling conversational AI"""
     
     def __init__(self):
-        """Initialize AI Agent Service"""
+        """Initialize AI Agent Service - ⚡ OPTIMIZED"""
         self.api_key = os.getenv("OPENAI_API_KEY")
-        self.model = os.getenv("OPENAI_MODEL", "gpt-4")
-        self.max_tokens = int(os.getenv("OPENAI_MAX_TOKENS", "500"))
+        # ⚡ OPTIMIZED: Read from .env (should be gpt-3.5-turbo)
+        self.model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+        # ⚡ OPTIMIZED: Read from .env (should be 150)
+        self.max_tokens = int(os.getenv("OPENAI_MAX_TOKENS", "150"))
         
         if not self.api_key:
             logger.warning("⚠️ OpenAI API key not found")
             self.client = None
         else:
             self.client = AsyncOpenAI(api_key=self.api_key)
-            logger.info("✅ OpenAI client initialized")
+            logger.info(f"✅ OpenAI client initialized with model: {self.model}")
+    
+    def is_configured(self) -> bool:
+        """Check if service is properly configured"""
+        return self.client is not None
     
     async def get_greeting(self, agent_id: Optional[str] = None) -> str:
         """
-        Get greeting message for agent
-        
-        Args:
-            agent_id: Voice agent ID (optional)
-            
-        Returns:
-            Greeting message string
+        ✅ IMPROVED: Get greeting message with enhanced wording
+        Always includes a clear follow-up question to prompt customer response
         """
         try:
-            # If agent_id provided, get custom greeting from database
             if agent_id:
                 db = await get_database()
-                
                 agent = await db.voice_agents.find_one({"_id": ObjectId(agent_id)})
                 
                 if agent and agent.get("greeting_message"):
+                    greeting = agent["greeting_message"]
                     logger.info(f"✅ Using custom greeting from agent {agent_id}")
-                    return agent["greeting_message"]
+                    
+                    # ✅ IMPROVED: Ensure greeting ALWAYS ends with an engaging question
+                    # Check if greeting already has a question mark
+                    if "?" not in greeting:
+                        # Add a warm, professional follow-up question
+                        greeting = f"{greeting} What can I assist you with today?"
+                    
+                    return greeting
             
-            # Default greeting
-            return "Hello! Thank you for calling. How can I help you today?"
+            # ✅ IMPROVED: Enhanced default greeting with better wording
+            return "Hello and thank you for calling! I'm here to help you. What can I assist you with today?"
             
         except Exception as e:
             logger.error(f"Error getting greeting: {e}")
-            return "Hello! Thank you for calling. How can I help you today?"
+            # ✅ IMPROVED: Fallback greeting is also enhanced
+            return "Hello and thank you for calling! I'm here to help you. What can I assist you with today?"
     
     async def process_user_input(
         self,
@@ -63,64 +73,161 @@ class AIAgentService:
         call_id: str,
         agent_config: Optional[Dict[str, Any]] = None
     ) -> str:
-        """
-        Process user input and generate AI response
-        
-        Args:
-            user_input: User's speech input
-            call_id: Call ID
-            agent_config: Agent configuration (optional)
-            
-        Returns:
-            AI-generated response
-        """
+        """Process user input and generate AI response"""
         try:
             logger.info(f"🤖 Processing user input for call {call_id}: '{user_input}'")
             
+            # Check if agent has workflow configured
+            if agent_config and agent_config.get("workflow_id"):
+                use_workflow = await workflow_engine.should_use_workflow(agent_config)
+                
+                if use_workflow:
+                    logger.info(f"📄 Using workflow for agent response")
+                    return await self._process_with_workflow(
+                        user_input=user_input,
+                        call_id=call_id,
+                        agent_config=agent_config
+                    )
+            
+            # Fallback: Use standard AI processing
+            logger.info(f"📄 Using standard AI processing (no workflow)")
+            return await self._process_with_ai(
+                user_input=user_input,
+                call_id=call_id,
+                agent_config=agent_config
+            )
+            
+        except Exception as e:
+            logger.error(f"❌ Error processing user input: {e}")
+            return "I apologize, but I'm having trouble understanding. Could you please repeat that?"
+    
+    async def _process_with_workflow(
+        self,
+        user_input: str,
+        call_id: str,
+        agent_config: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Process user input using workflow engine"""
+        try:
+            logger.info(f"🔄 Processing with workflow engine for call {call_id}")
+            
+            # Execute workflow
+            result = await workflow_engine.process_conversation_turn(
+                workflow_id=str(agent_config["workflow_id"]),
+                user_input=user_input,
+                call_id=call_id,
+                agent_config=agent_config
+            )
+            
+            if result.get("success"):
+                response = result.get("response", "")
+                
+                # Save workflow conversation to database
+                db = await get_database()
+                conversation = await db.conversations.find_one({"call_id": ObjectId(call_id)})
+                
+                if conversation:
+                    # Prepare metadata
+                    metadata = {
+                        "workflow_id": str(agent_config["workflow_id"]),
+                        "node_id": result.get("node_id"),
+                        "is_end": result.get("is_end", False)
+                    }
+                    
+                    await db.conversations.update_one(
+                        {"_id": conversation["_id"]},
+                        {
+                            "$push": {
+                                "messages": {
+                                    "$each": [
+                                        {
+                                            "role": "user",
+                                            "content": user_input,
+                                            "timestamp": datetime.utcnow(),
+                                            "metadata": metadata
+                                        },
+                                        {
+                                            "role": "assistant",
+                                            "content": response,
+                                            "timestamp": datetime.utcnow(),
+                                            "metadata": metadata
+                                        }
+                                    ]
+                                }
+                            },
+                            "$set": {"updated_at": datetime.utcnow()}
+                        }
+                    )
+                    logger.info(f"💾 Workflow conversation saved for call {call_id}")
+                
+                logger.info(f"✅ Workflow response generated: {response[:50]}...")
+                return response
+            else:
+                # Workflow failed, use AI fallback
+                logger.warning(f"⚠️ Workflow execution failed: {result.get('error')}")
+                return await self._process_with_ai(user_input, call_id, agent_config)
+                
+        except Exception as e:
+            logger.error(f"❌ Error in workflow processing: {e}")
+            import traceback
+            traceback.print_exc()
+            return await self._process_with_ai(user_input, call_id, agent_config)
+    
+    async def _process_with_ai(
+        self,
+        user_input: str,
+        call_id: str,
+        agent_config: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """⚡ OPTIMIZED: Process user input using OpenAI (GPT-3.5-Turbo by default)"""
+        try:
             if not self.client:
                 logger.error("OpenAI client not initialized")
                 return "I apologize, but I'm having technical difficulties. Please try again later."
             
             # Get conversation history
             db = await get_database()
-            
             conversation = await db.conversations.find_one({"call_id": ObjectId(call_id)})
             
             # Build conversation context
             messages = []
             
-            # 🔥 CRITICAL FIX: Always fetch latest system prompt from database
+            # Get system prompt from agent config
             system_prompt = None
             
             if agent_config and agent_config.get("_id"):
-                # Fetch fresh agent data from database every time
+                # Fetch fresh agent data from database
                 try:
                     fresh_agent = await db.voice_agents.find_one({"_id": agent_config["_id"]})
                     if fresh_agent and fresh_agent.get("system_prompt"):
                         system_prompt = fresh_agent["system_prompt"]
-                        logger.info(f"✅ Using fresh system prompt from database (agent: {fresh_agent.get('name')}, length: {len(system_prompt)} chars)")
+                        logger.info(f"✅ Using system prompt from agent")
                 except Exception as e:
                     logger.error(f"❌ Error fetching fresh agent: {e}")
             
-            # Fallback to default only if no agent found
+            # Fallback to default
             if not system_prompt:
                 system_prompt = """You are a helpful AI assistant for a call center. 
 Be professional, friendly, and concise in your responses (keep responses under 50 words). 
 Help customers with their questions and needs. 
-If asked what you can do, explain that you can help answer questions, provide information, and assist with inquiries."""
+
+IMPORTANT CONVERSATION ENDING RULES:
+1. After helping the customer, ALWAYS ask "Is there anything else I can help you with?" or similar
+2. If customer says "no", "that's all", "nothing else", or similar - thank them and say goodbye
+3. If customer asks another question or says "yes" - continue helping them
+4. Always be polite and professional"""
             
-            # Add system message
             messages.append({
                 "role": "system",
                 "content": system_prompt
             })
             
-            # Add conversation history if available
+            # Add conversation history (limit to last 10 messages)
             if conversation and conversation.get("messages"):
-                for msg in conversation.get("messages", []):
+                for msg in conversation["messages"][-10:]:
                     messages.append({
-                        "role": msg.get("role"),
-                        "content": msg.get("content")
+                        "role": msg["role"],
+                        "content": msg["content"]
                     })
             
             # Add current user input
@@ -129,14 +236,326 @@ If asked what you can do, explain that you can help answer questions, provide in
                 "content": user_input
             })
             
-            logger.info(f"📨 Sending {len(messages)} messages to OpenAI")
+            logger.info(f"📨 Sending {len(messages)} messages to OpenAI ({self.model})")
             
-            # Get AI response
-            ai_response = await self.get_completion(messages)
+            # ⚡ OPTIMIZED: Use GPT-3.5-Turbo with timeout
+            response = await self.client.chat.completions.create(
+                model=self.model,  # Will use gpt-3.5-turbo from .env
+                messages=messages,
+                max_tokens=self.max_tokens,  # Will use 150 from .env
+                temperature=0.7,
+                timeout=5.0  # ⚡ ADDED: Force fast response
+            )
             
-            logger.info(f"🎯 Generated AI response: '{ai_response}'")
+            ai_response = response.choices[0].message.content
             
-            # Save messages to conversation
+            logger.info(f"✅ AI Response generated with {self.model}")
+            
+            # SAVE MESSAGES TO CONVERSATION
+            if conversation:
+                await db.conversations.update_one(
+                    {"_id": conversation["_id"]},
+                    {"$push": {
+                            "messages": {
+                                "$each": [
+                                    {
+                                        "role": "user",
+                                        "content": user_input,
+                                        "timestamp": datetime.utcnow()
+                                    },
+                                    {
+                                        "role": "assistant",
+                                        "content": ai_response,
+                                        "timestamp": datetime.utcnow()
+                                    }
+                                ]
+                            }
+                        },
+                        "$set": {"updated_at": datetime.utcnow()}
+                    }
+                )
+                logger.info(f"💾 OpenAI conversation saved for call {call_id}")
+            
+            return ai_response
+            
+        except Exception as e:
+            logger.error(f"❌ Error in OpenAI processing: {e}")
+            import traceback
+            traceback.print_exc()
+            return "I apologize, but I'm having trouble processing your request. Could you please try again?"
+    
+    async def should_end_conversation(self, ai_response: str, user_input: str = "") -> bool:
+        """Determine if the conversation should end"""
+        try:
+            # Check user input for ending phrases
+            user_ending_phrases = [
+                "no", "nope", "nothing", "that's all", "that's it",
+                "no thanks", "no thank you", "nothing else",
+                "i'm good", "all good", "all set", "goodbye", "bye"
+            ]
+            
+            user_lower = user_input.lower().strip()
+            
+            # If user input is very short and matches ending phrase
+            if len(user_lower.split()) <= 4:
+                for phrase in user_ending_phrases:
+                    if phrase in user_lower:
+                        logger.info(f"👋 User wants to end: '{user_input}'")
+                        return True
+            
+            # Check AI response for goodbye phrases
+            ending_phrases = [
+                "goodbye",
+                "have a great day",
+                "thank you for calling",
+                "talk to you later",
+                "bye",
+                "have a nice day",
+                "have a wonderful day"
+            ]
+            
+            response_lower = ai_response.lower()
+            
+            for phrase in ending_phrases:
+                if phrase in response_lower:
+                    logger.info(f"👋 Ending conversation - detected phrase: '{phrase}'")
+                    return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error checking if conversation should end: {e}")
+            return False
+
+
+# Create singleton instance
+ai_agent_service = AIAgentService()
+
+
+
+# backend/app/services/ai_agent.py - COMPLETE FIXED VERSION without script 
+
+import os
+import logging
+from typing import Dict, List, Optional, Any
+from openai import AsyncOpenAI
+from datetime import datetime
+from bson import ObjectId
+
+from app.database import get_database
+
+logger = logging.getLogger(__name__)
+
+
+class AIAgentService:
+    """
+    AI Agent Service - Handles conversation processing
+    🎯 PRIORITY: Use Campaign Builder workflow if configured, otherwise use OpenAI
+    """
+    
+    def __init__(self):
+        api_key = os.getenv("OPENAI_API_KEY")
+        self.model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+        self.max_tokens = int(os.getenv("OPENAI_MAX_TOKENS", 150))
+        
+        if api_key:
+            self.client = AsyncOpenAI(api_key=api_key)
+            logger.info(f"✅ OpenAI client initialized with model: {self.model}")
+        else:
+            self.client = None
+            logger.warning("⚠️ OpenAI API key not configured")
+    
+    async def process_message(
+        self,
+        user_input: str,
+        call_id: str,
+        agent_config: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """
+        🎯 MAIN METHOD: Process user message
+        PRIORITY ORDER:
+        1. If workflow configured -> Use Campaign Builder script (STRICT)
+        2. If no workflow -> Use OpenAI fallback
+        """
+        try:
+            logger.info(f"🎤 Processing message for call: {call_id}")
+            logger.info(f"📝 User input: {user_input}")
+            
+            # 🎯 CHECK IF AGENT HAS WORKFLOW CONFIGURED
+            if agent_config and agent_config.get("workflow_id"):
+                workflow_id = str(agent_config["workflow_id"])
+                logger.info(f"📄 Agent has workflow configured: {workflow_id}")
+                logger.info(f"✅ Using Campaign Builder script (STRICT MODE)")
+                
+                return await self._process_with_workflow(
+                    user_input=user_input,
+                    call_id=call_id,
+                    agent_config=agent_config
+                )
+            else:
+                # No workflow configured - use OpenAI fallback
+                logger.info(f"🤖 No workflow configured, using AI fallback")
+                return await self._process_with_ai(
+                    user_input=user_input,
+                    call_id=call_id,
+                    agent_config=agent_config
+                )
+                
+        except Exception as e:
+            logger.error(f"❌ Error processing message: {e}")
+            import traceback
+            traceback.print_exc()
+            return "I apologize, but I encountered an error. Could you please repeat that?"
+    
+    async def _process_with_workflow(
+        self,
+        user_input: str,
+        call_id: str,
+        agent_config: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """
+        🎯 Process using Campaign Builder workflow
+        This ensures the voice agent follows the EXACT script from your workflow nodes
+        """
+        try:
+            logger.info(f"📄 Processing with workflow engine for call {call_id}")
+            
+            # Import workflow engine (avoid circular imports)
+            from app.services.workflow_engine import workflow_engine
+            
+            # Execute workflow step
+            result = await workflow_engine.process_conversation_turn(
+                workflow_id=str(agent_config["workflow_id"]),
+                user_input=user_input,
+                call_id=call_id,
+                agent_config=agent_config
+            )
+            
+            if result.get("success"):
+                response = result.get("response", "")
+                
+                # Save workflow conversation to database
+                db = await get_database()
+                conversation = await db.conversations.find_one({"call_id": ObjectId(call_id)})
+                
+                if conversation:
+                    # Prepare metadata
+                    metadata = {
+                        "workflow_id": str(agent_config["workflow_id"]),
+                        "node_id": result.get("node_id"),
+                        "node_type": result.get("node_type"),
+                        "is_end": result.get("is_end", False)
+                    }
+                    
+                    # Save messages to conversation history
+                    await db.conversations.update_one(
+                        {"_id": conversation["_id"]},
+                        {
+                            "$push": {
+                                "messages": {
+                                    "$each": [
+                                        {
+                                            "role": "user",
+                                            "content": user_input,
+                                            "timestamp": datetime.utcnow(),
+                                            "metadata": metadata
+                                        },
+                                        {
+                                            "role": "assistant",
+                                            "content": response,
+                                            "timestamp": datetime.utcnow(),
+                                            "metadata": metadata
+                                        }
+                                    ]
+                                }
+                            },
+                            "$set": {"updated_at": datetime.utcnow()}
+                        }
+                    )
+                    logger.info(f"💾 Workflow conversation saved for call {call_id}")
+                
+                logger.info(f"✅ Workflow response: {response[:100]}...")
+                return response
+            else:
+                # Workflow failed, use AI fallback
+                logger.warning(f"⚠️ Workflow execution failed: {result.get('error')}")
+                return await self._process_with_ai(user_input, call_id, agent_config)
+                
+        except Exception as e:
+            logger.error(f"❌ Error in workflow processing: {e}")
+            import traceback
+            traceback.print_exc()
+            # Fallback to AI if workflow fails
+            return await self._process_with_ai(user_input, call_id, agent_config)
+    
+    async def _process_with_ai(
+        self,
+        user_input: str,
+        call_id: str,
+        agent_config: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """
+        🤖 Process using OpenAI when no workflow is configured
+        This is the fallback method
+        """
+        try:
+            if not self.client:
+                logger.error("❌ OpenAI client not initialized")
+                return "I apologize, but I'm having technical difficulties. Please try again later."
+            
+            logger.info(f"🤖 Processing with OpenAI for call: {call_id}")
+            
+            # Get conversation history
+            db = await get_database()
+            conversation = await db.conversations.find_one({"call_id": ObjectId(call_id)})
+            
+            # Build conversation context
+            messages = []
+            
+            # Get system prompt from agent config
+            system_prompt = None
+            
+            if agent_config and agent_config.get("_id"):
+                try:
+                    fresh_agent = await db.voice_agents.find_one({"_id": agent_config["_id"]})
+                    if fresh_agent and fresh_agent.get("system_prompt"):
+                        system_prompt = fresh_agent["system_prompt"]
+                        logger.info(f"✅ Using system prompt from agent")
+                except Exception as e:
+                    logger.error(f"❌ Error fetching agent: {e}")
+            
+            # Fallback system prompt
+            if not system_prompt:
+                system_prompt = """You are a helpful AI assistant for a call center. 
+Be professional, friendly, and concise in your responses (keep responses under 50 words). 
+Help customers with their questions and needs."""
+            
+            messages.append({"role": "system", "content": system_prompt})
+            
+            # Add conversation history
+            if conversation and conversation.get("messages"):
+                for msg in conversation["messages"][-10:]:  # Last 10 messages
+                    messages.append({
+                        "role": msg["role"],
+                        "content": msg["content"]
+                    })
+            
+            # Add current user input
+            messages.append({"role": "user", "content": user_input})
+            
+            # Call OpenAI
+            logger.info(f"🤖 Calling OpenAI with {len(messages)} messages")
+            
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                max_tokens=self.max_tokens,
+                temperature=0.7
+            )
+            
+            ai_response = response.choices[0].message.content.strip()
+            
+            # Save conversation to database
             if conversation:
                 await db.conversations.update_one(
                     {"_id": conversation["_id"]},
@@ -160,397 +579,152 @@ If asked what you can do, explain that you can help answer questions, provide in
                         "$set": {"updated_at": datetime.utcnow()}
                     }
                 )
-                logger.info(f"💾 Conversation updated for call {call_id}")
             
+            logger.info(f"✅ AI response: {ai_response[:100]}...")
             return ai_response
             
         except Exception as e:
-            logger.error(f"❌ Error processing user input: {e}")
+            logger.error(f"❌ Error in AI processing: {e}")
             import traceback
             traceback.print_exc()
-            return "I apologize, but I'm having trouble processing your request. Could you please try again?"
+            return "I apologize, but I'm having trouble processing that. Could you please repeat?"
     
-    async def get_completion(self, messages: List[Dict[str, str]]) -> str:
+    async def get_greeting(self, agent_id: Optional[str] = None) -> str:
         """
-        Get completion from OpenAI
-        
-        Args:
-            messages: List of message dictionaries
-            
-        Returns:
-            AI response string
+        Get greeting message for voice agent
+        🎯 If workflow configured, get greeting from workflow's first node
+        Otherwise, use agent's greeting_message
         """
         try:
-            if not self.client:
-                return "AI service not configured"
+            if not agent_id:
+                return "Hello! How can I help you today?"
             
-            logger.info(f"📄 Calling OpenAI API with model: {self.model}")
+            db = await get_database()
+            agent = await db.voice_agents.find_one({"_id": ObjectId(agent_id)})
             
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                max_tokens=self.max_tokens,
-                temperature=0.7
-            )
+            if not agent:
+                return "Hello! How can I help you today?"
             
-            ai_response = response.choices[0].message.content.strip()
+            # 🎯 CHECK IF AGENT HAS WORKFLOW CONFIGURED
+            if agent.get("workflow_id"):
+                workflow_id = str(agent["workflow_id"])
+                logger.info(f"📄 Agent has workflow, fetching greeting from workflow: {workflow_id}")
+                
+                # Import workflow engine (avoid circular imports)
+                from app.services.workflow_engine import workflow_engine
+                
+                # Get workflow
+                workflow = await workflow_engine.get_workflow(workflow_id)
+                
+                if workflow:
+                    # Find start node (Begin/Welcome node)
+                    start_node = await workflow_engine.find_start_node(workflow)
+                    
+                    if start_node:
+                        # Get greeting message from start node
+                        greeting = await workflow_engine._get_node_response(start_node)
+                        logger.info(f"✅ Using workflow greeting: {greeting[:50]}...")
+                        return greeting
             
-            logger.info(f"✅ OpenAI API response received: {len(ai_response)} characters")
-            
-            return ai_response
+            # Fallback to agent's greeting_message
+            greeting = agent.get("greeting_message", "Hello! How can I help you today?")
+            logger.info(f"✅ Using agent greeting: {greeting}")
+            return greeting
             
         except Exception as e:
-            logger.error(f"❌ Error getting completion from OpenAI: {e}")
-            import traceback
-            traceback.print_exc()
-            return "I apologize, but I'm experiencing technical difficulties. Please try again."
+            logger.error(f"❌ Error getting greeting: {e}")
+            return "Hello! How can I help you today?"
     
-    async def should_end_conversation(self, ai_response: str) -> bool:
+    # 🔧 FIXED: UNCOMMENTED should_end_conversation method
+    async def should_end_conversation(self, ai_response: str, user_input: str = "") -> bool:
         """
-        Determine if the conversation should end based on AI response
+        Determine if the conversation should end
         
-        Args:
-            ai_response: The AI's response text
-            
-        Returns:
-            True if conversation should end, False otherwise
+        Checks both user input and AI response for ending phrases
         """
         try:
-            # Check for common ending phrases
+            # Check user input for ending phrases
+            user_ending_phrases = [
+                "no", "nope", "nothing", "that's all", "that's it",
+                "no thanks", "no thank you", "nothing else",
+                "i'm good", "all good", "all set", "goodbye", "bye"
+            ]
+            
+            user_lower = user_input.lower().strip()
+            
+            # If user input is very short and matches ending phrase
+            if len(user_lower.split()) <= 4:
+                for phrase in user_ending_phrases:
+                    if phrase in user_lower:
+                        logger.info(f"👋 User wants to end: '{user_input}'")
+                        return True
+            
+            # Check AI response for goodbye phrases
             ending_phrases = [
                 "goodbye",
                 "have a great day",
                 "thank you for calling",
-                "is there anything else",
-                "that's all for now",
                 "talk to you later",
                 "bye",
-                "have a nice day"
+                "have a nice day",
+                "have a wonderful day"
             ]
             
             response_lower = ai_response.lower()
             
-            # Check if response contains ending phrases
             for phrase in ending_phrases:
                 if phrase in response_lower:
                     logger.info(f"👋 Ending conversation - detected phrase: '{phrase}'")
                     return True
             
-            # Don't end by default - keep conversation going
             return False
             
         except Exception as e:
             logger.error(f"Error checking if conversation should end: {e}")
             return False
     
-    async def analyze_call(self, call_id: str, messages: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        Analyze a completed call conversation
-        
-        Args:
-            call_id: Call ID
-            messages: List of conversation messages
-            
-        Returns:
-            Dict with call analysis (summary, sentiment, outcome, keywords)
-        """
+    async def detect_intent(self, user_input: str) -> Dict[str, Any]:
+        """Detect user intent from input"""
         try:
-            logger.info(f"📊 Analyzing call {call_id} with {len(messages)} messages")
+            user_lower = user_input.lower()
             
-            if not self.client or not messages:
-                return {
-                    "summary": "Call completed",
-                    "sentiment": "neutral",
-                    "outcome": "completed",
-                    "keywords": [],
-                    "key_points": []
-                }
-            
-            # Build conversation text
-            conversation_text = "\n".join([
-                f"{msg.get('role', 'unknown')}: {msg.get('content', '')}"
-                for msg in messages
-            ])
-            
-            # Create analysis prompt
-            analysis_prompt = f"""Analyze the following customer service call conversation and provide:
-1. A brief summary (2-3 sentences)
-2. Overall sentiment (positive/neutral/negative)
-3. Call outcome (successful/needs_followup/issue_resolved/no_answer)
-4. Key topics discussed (list 3-5 keywords)
-5. Important points or action items
-
-Conversation:
-{conversation_text}
-
-Respond in JSON format:
-{{
-    "summary": "brief summary here",
-    "sentiment": "positive/neutral/negative",
-    "outcome": "successful/needs_followup/issue_resolved/no_answer",
-    "keywords": ["keyword1", "keyword2", "keyword3"],
-    "key_points": ["point1", "point2"]
-}}"""
-            
-            messages_for_analysis = [
-                {
-                    "role": "system",
-                    "content": "You are an expert at analyzing customer service calls. Provide concise, accurate analysis in JSON format."
-                },
-                {
-                    "role": "user",
-                    "content": analysis_prompt
-                }
-            ]
-            
-            # Get analysis from OpenAI
-            response = await self.get_completion(messages_for_analysis)
-            
-            # Try to parse JSON response
-            try:
-                analysis = json.loads(response)
-                logger.info(f"✅ Call analysis completed: {analysis.get('outcome')}")
-                return analysis
-            except json.JSONDecodeError:
-                logger.warning("⚠️ Failed to parse JSON response, using default analysis")
-                return {
-                    "summary": response[:200] if len(response) > 200 else response,
-                    "sentiment": "neutral",
-                    "outcome": "completed",
-                    "keywords": [],
-                    "key_points": []
-                }
-            
-        except Exception as e:
-            logger.error(f"❌ Error analyzing call: {e}")
-            import traceback
-            traceback.print_exc()
-            return {
-                "summary": "Call completed",
-                "sentiment": "neutral",
-                "outcome": "completed",
-                "keywords": [],
-                "key_points": []
+            # Common intents
+            intents = {
+                "appointment": ["appointment", "book", "schedule", "reservation", "meeting"],
+                "pricing": ["price", "cost", "how much", "pricing", "fee"],
+                "support": ["help", "support", "problem", "issue", "question"],
+                "goodbye": ["bye", "goodbye", "thank you", "thanks", "that's all"],
+                "greeting": ["hello", "hi", "hey", "good morning", "good afternoon"]
             }
-    
-    async def generate_transcript(self, messages: List[Dict[str, Any]]) -> str:
-        """
-        Generate a formatted transcript from conversation messages
-        
-        Args:
-            messages: List of conversation messages
             
-        Returns:
-            Formatted transcript string
-        """
-        try:
-            if not messages:
-                return ""
+            detected_intents = []
+            confidence = 0.0
             
-            transcript_lines = []
+            for intent, keywords in intents.items():
+                if any(keyword in user_lower for keyword in keywords):
+                    detected_intents.append(intent)
+                    confidence = 0.8
             
-            for msg in messages:
-                role = msg.get("role", "unknown")
-                content = msg.get("content", "")
-                timestamp = msg.get("timestamp", datetime.utcnow())
-                
-                # Format role label
-                role_label = "Agent" if role == "assistant" else "Customer" if role == "user" else "System"
-                
-                # Format timestamp
-                time_str = timestamp.strftime("%H:%M:%S") if isinstance(timestamp, datetime) else ""
-                
-                # Add to transcript
-                if time_str:
-                    transcript_lines.append(f"[{time_str}] {role_label}: {content}")
-                else:
-                    transcript_lines.append(f"{role_label}: {content}")
+            primary_intent = detected_intents[0] if detected_intents else "general_inquiry"
             
-            # Join all lines with newlines
-            transcript = "\n".join(transcript_lines)
-            
-            logger.info(f"📝 Generated transcript with {len(transcript_lines)} lines")
-            
-            return transcript
-            
-        except Exception as e:
-            logger.error(f"❌ Error generating transcript: {e}")
-            import traceback
-            traceback.print_exc()
-            return ""
-    
-    async def generate_summary(self, messages: List[Dict[str, Any]]) -> str:
-        """
-        Generate a summary of the conversation
-        
-        Args:
-            messages: List of conversation messages
-            
-        Returns:
-            Summary string
-        """
-        try:
-            if not self.client or not messages:
-                return "Call completed with no conversation"
-            
-            # Build conversation text
-            conversation_text = "\n".join([
-                f"{msg.get('role', 'unknown')}: {msg.get('content', '')}"
-                for msg in messages
-            ])
-            
-            # Create summary prompt
-            summary_prompt = f"""Summarize the following customer service call conversation in 2-3 sentences:
-
-{conversation_text}
-
-Provide a concise summary focusing on the main topic discussed and any outcomes or next steps."""
-            
-            messages_for_summary = [
-                {
-                    "role": "system",
-                    "content": "You are an expert at summarizing customer service calls."
-                },
-                {
-                    "role": "user",
-                    "content": summary_prompt
-                }
-            ]
-            
-            # Get summary from OpenAI
-            summary = await self.get_completion(messages_for_summary)
-            
-            logger.info(f"✅ Summary generated: {len(summary)} characters")
-            
-            return summary
-            
-        except Exception as e:
-            logger.error(f"❌ Error generating summary: {e}")
-            return "Call completed"
-    
-    async def extract_booking_details(self, messages: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        Extract booking or appointment details from conversation
-        
-        Args:
-            messages: List of conversation messages
-            
-        Returns:
-            Dict with booking details
-        """
-        try:
-            if not self.client or not messages:
-                return {
-                    "success": False,
-                    "booking_details": None
-                }
-            
-            # Build conversation text
-            conversation_text = "\n".join([
-                f"{msg.get('role', 'unknown')}: {msg.get('content', '')}"
-                for msg in messages
-            ])
-            
-            # Create extraction prompt
-            extraction_prompt = f"""Analyze this customer service call and extract any booking or appointment details mentioned:
-
-{conversation_text}
-
-If booking details are discussed, respond in JSON format:
-{{
-    "has_booking": true,
-    "service_type": "type of service",
-    "date": "mentioned date",
-    "time": "mentioned time",
-    "customer_name": "customer name",
-    "phone": "phone number",
-    "email": "email address",
-    "notes": "any additional notes"
-}}
-
-If no booking details are mentioned, respond:
-{{"has_booking": false}}"""
-            
-            messages_for_extraction = [
-                {
-                    "role": "system",
-                    "content": "You are an expert at extracting structured information from conversations."
-                },
-                {
-                    "role": "user",
-                    "content": extraction_prompt
-                }
-            ]
-            
-            # Get extraction from OpenAI
-            response = await self.get_completion(messages_for_extraction)
-            
-            # Try to parse JSON response
-            try:
-                booking_data = json.loads(response)
-                
-                if booking_data.get("has_booking"):
-                    logger.info(f"✅ Booking details extracted")
-                    return {
-                        "success": True,
-                        "booking_details": booking_data
-                    }
-                else:
-                    return {
-                        "success": True,
-                        "booking_details": None
-                    }
-                    
-            except json.JSONDecodeError:
-                logger.warning("⚠️ Failed to parse booking details JSON")
-                return {
-                    "success": False,
-                    "booking_details": None
-                }
-            
-        except Exception as e:
-            logger.error(f"❌ Error extracting booking details: {e}")
             return {
-                "success": False,
-                "booking_details": None
+                "intent": primary_intent,
+                "confidence": confidence,
+                "all_intents": detected_intents
             }
-    
-    async def generate_response(
-        self,
-        prompt: str,
-        context: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """
-        Generate a response based on prompt and context
-        
-        Args:
-            prompt: Input prompt
-            context: Additional context (optional)
-            
-        Returns:
-            Generated response
-        """
-        try:
-            if not self.client:
-                return "AI service not configured"
-            
-            messages = [
-                {
-                    "role": "system",
-                    "content": "You are a helpful AI assistant."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
-            
-            return await self.get_completion(messages)
             
         except Exception as e:
-            logger.error(f"Error generating response: {e}")
-            return "I apologize, but I'm unable to generate a response at this time."
+            logger.error(f"❌ Error detecting intent: {e}")
+            return {
+                "intent": "general_inquiry",
+                "confidence": 0.5,
+                "all_intents": []
+            }
 
 
 # Create singleton instance
 ai_agent_service = AIAgentService()
+
+
+
+

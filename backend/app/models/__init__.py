@@ -1,13 +1,12 @@
-# backend/app/models/__init__.py
+# backend/app/models/__init__.py - UPDATED
 """
 Database Models Package
-
-Contains all data models for the CallCenter SaaS application.
 """
 
 from .user import User, UserInDB, UserResponse
 from .subscription import Subscription, SubscriptionPlan
 from .demo_booking import DemoBooking
+from .appointment import Appointment  # ✅ NEW
 
 __all__ = [
     "User",
@@ -16,4 +15,5 @@ __all__ = [
     "Subscription",
     "SubscriptionPlan",
     "DemoBooking",
+    "Appointment",  # ✅ NEW
 ]

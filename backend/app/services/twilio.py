@@ -1,5 +1,4 @@
-
-# # backend/app/services/twilio.py - FIXED VERSION milestone 2 
+# # backend/app/services/twilio.py without campaign builder workflow 
 
 # import os
 # from twilio.rest import Client
@@ -10,6 +9,7 @@
 # class TwilioService:
 #     def __init__(self):
 #         """Initialize Twilio service and load credentials"""
+#         self._is_configured = False
 #         self._reload_credentials()
     
 #     def _reload_credentials(self):
@@ -31,9 +31,16 @@
 #         print()
         
 #         if not self.account_sid or not self.auth_token:
-#             raise ValueError("Twilio credentials not found!")
+#             self._is_configured = False
+#             print("⚠️ Twilio credentials not configured")
+#             return
         
 #         self.client = Client(self.account_sid, self.auth_token)
+#         self._is_configured = True
+    
+#     def is_configured(self) -> bool:
+#         """Check if Twilio is properly configured"""
+#         return self._is_configured
 
 #     def make_call(
 #         self,
@@ -45,10 +52,7 @@
 #         try:
 #             self._reload_credentials()
             
-#             # ✅ FIX: Use /incoming endpoint for outbound calls too
 #             base_webhook_url = self.webhook_url.replace('/incoming', '') if '/incoming' in self.webhook_url else self.webhook_url
-            
-#             # For outbound calls, use the /incoming endpoint
 #             outbound_webhook_url = f"{base_webhook_url}/incoming"
             
 #             print()
@@ -59,11 +63,10 @@
 #             print(f"   Status Callback: {base_webhook_url}/status")
 #             print()
             
-#             # Make the call
 #             call = self.client.calls.create(
 #                 to=to_number,
 #                 from_=from_number or self.phone_number,
-#                 url=outbound_webhook_url,  # ✅ Use /incoming endpoint
+#                 url=outbound_webhook_url,
 #                 status_callback=f"{base_webhook_url}/status",
 #                 status_callback_event=["initiated", "ringing", "answered", "completed"],
 #                 status_callback_method="POST",
@@ -158,7 +161,7 @@
 
 
 
-# backend/app/services/twilio.py 3m- COMPLETE CORRECTED VERSION
+# backend/app/services/twilio.py - COMPLETE FIXED VERSION with campaign builder ai 
 
 import os
 from twilio.rest import Client
@@ -212,22 +215,26 @@ class TwilioService:
         try:
             self._reload_credentials()
             
+            # Extract base URL without /incoming
             base_webhook_url = self.webhook_url.replace('/incoming', '') if '/incoming' in self.webhook_url else self.webhook_url
             outbound_webhook_url = f"{base_webhook_url}/incoming"
+            
+            # ✅ FIXED: Correct status callback URL to match FastAPI route
+            status_callback_url = f"{base_webhook_url}/call-status"
             
             print()
             print("📞 INITIATING TWILIO CALL:")
             print(f"   To: {to_number}")
             print(f"   From: {from_number or self.phone_number}")
             print(f"   Webhook: {outbound_webhook_url}")
-            print(f"   Status Callback: {base_webhook_url}/status")
+            print(f"   Status Callback: {status_callback_url}")
             print()
             
             call = self.client.calls.create(
                 to=to_number,
                 from_=from_number or self.phone_number,
                 url=outbound_webhook_url,
-                status_callback=f"{base_webhook_url}/status",
+                status_callback=status_callback_url,  # ✅ FIXED
                 status_callback_event=["initiated", "ringing", "answered", "completed"],
                 status_callback_method="POST",
                 record=True

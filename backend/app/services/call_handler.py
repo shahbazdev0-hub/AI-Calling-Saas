@@ -1,4 +1,4 @@
-# # backend/app/services/call_handler.py pervious call run without appointment 
+# # backend/app/services/call_handler.py - without campaign builder
 # """
 # Call Handler Service - Manages call lifecycle and conversation flow
 # """
@@ -49,9 +49,10 @@
 #                 "direction": "outbound",
 #                 "from_number": from_number or self.twilio.phone_number,
 #                 "to_number": to_number,
+#                 "phone_number": to_number,
 #                 "status": "initiated",
 #                 "call_sid": call_result["call_sid"],
-#                 "agent_id": agent_id,
+#                 "agent_id": ObjectId(agent_id) if agent_id else None,
 #                 "started_at": datetime.utcnow(),
 #                 "created_at": datetime.utcnow(),
 #                 "updated_at": datetime.utcnow()
@@ -65,7 +66,8 @@
 #             # Create conversation record
 #             conversation_data = {
 #                 "call_id": result.inserted_id,
-#                 "agent_id": agent_id,
+#                 "user_id": user_id,
+#                 "agent_id": ObjectId(agent_id) if agent_id else None,
 #                 "messages": [],
 #                 "started_at": datetime.utcnow(),
 #                 "created_at": datetime.utcnow(),
@@ -113,6 +115,7 @@
 #                 "direction": "inbound",
 #                 "from_number": from_number,
 #                 "to_number": to_number,
+#                 "phone_number": from_number,
 #                 "status": "initiated",
 #                 "call_sid": call_sid,
 #                 "started_at": datetime.utcnow(),
@@ -133,36 +136,13 @@
             
 #             await self.db.conversations.insert_one(conversation_data)
             
-#             print(f"Created call record: {result.inserted_id}")
-            
 #             return call_data
             
 #         except Exception as e:
 #             print(f"Error handling incoming call: {e}")
 #             import traceback
 #             traceback.print_exc()
-#             raise
-
-#     async def get_call_by_id(self, call_id: str) -> Optional[Dict]:
-#         """Get call record by MongoDB ID"""
-#         try:
-#             if not ObjectId.is_valid(call_id):
-#                 return None
-            
-#             call = await self.db.calls.find_one({"_id": ObjectId(call_id)})
-#             return call
-#         except Exception as e:
-#             print(f"Error getting call by ID: {e}")
-#             return None
-
-#     async def get_call_by_sid(self, call_sid: str) -> Optional[Dict]:
-#         """Get call record by Twilio Call SID"""
-#         try:
-#             call = await self.db.calls.find_one({"call_sid": call_sid})
-#             return call
-#         except Exception as e:
-#             print(f"Error getting call by SID: {e}")
-#             return None
+#             return {}
 
 #     async def update_call_status(
 #         self,
@@ -170,12 +150,12 @@
 #         status: str,
 #         duration: Optional[int] = None
 #     ) -> bool:
-#         """Update call status"""
+#         """Update call status in database"""
 #         try:
 #             print(f"Updating call status:")
 #             print(f"   Call SID: {call_sid}")
 #             print(f"   New Status: {status}")
-#             print(f"   Duration: {duration} seconds" if duration else "   Duration: None seconds")
+#             print(f"   Duration: {duration} seconds")
             
 #             update_data = {
 #                 "status": status,
@@ -188,10 +168,10 @@
 #             if status == "completed":
 #                 update_data["ended_at"] = datetime.utcnow()
                 
-#                 # End conversation
-#                 call = await self.get_call_by_sid(call_sid)
+#                 # Also update conversation status
+#                 call = await self.db.calls.find_one({"call_sid": call_sid})
 #                 if call:
-#                     await self.db.conversations.update_one(
+#                     conv_result = await self.db.conversations.update_one(
 #                         {"call_id": call["_id"]},
 #                         {
 #                             "$set": {
@@ -200,7 +180,7 @@
 #                             }
 #                         }
 #                     )
-#                     print(f"Conversation ended (matched: 1)")
+#                     print(f"Conversation ended (matched: {conv_result.matched_count})")
             
 #             result = await self.db.calls.update_one(
 #                 {"call_sid": call_sid},
@@ -208,20 +188,19 @@
 #             )
             
 #             print(f"Call status updated (matched: {result.matched_count})")
-            
 #             return result.matched_count > 0
             
 #         except Exception as e:
 #             print(f"Error updating call status: {e}")
 #             return False
 
-#     async def save_conversation_turn(
+#     async def add_message_to_conversation(
 #         self,
 #         call_id: str,
 #         role: str,
 #         content: str
 #     ) -> bool:
-#         """Save a conversation message"""
+#         """Add a message to the conversation"""
 #         try:
 #             message = {
 #                 "role": role,
@@ -237,46 +216,63 @@
 #                 }
 #             )
             
-#             print(f"Saved {role} message to conversation")
-#             return result.modified_count > 0
+#             if result.matched_count > 0:
+#                 print(f"Saved {role} message to conversation")
+            
+#             return result.matched_count > 0
             
 #         except Exception as e:
-#             print(f"Error saving conversation turn: {e}")
+#             print(f"Error adding message to conversation: {e}")
 #             return False
 
+#     async def save_conversation_turn(
+#         self,
+#         call_id: str,
+#         role: str,
+#         content: str
+#     ) -> bool:
+#         """Save a conversation turn (alias for add_message_to_conversation)"""
+#         return await self.add_message_to_conversation(call_id, role, content)
+
 #     async def get_conversation(self, call_id: str) -> Optional[Dict]:
-#         """Get conversation record"""
+#         """Get conversation for a call"""
 #         try:
-#             if not ObjectId.is_valid(call_id):
-#                 return None
-            
 #             conversation = await self.db.conversations.find_one({
 #                 "call_id": ObjectId(call_id)
 #             })
-            
 #             return conversation
             
 #         except Exception as e:
 #             print(f"Error getting conversation: {e}")
 #             return None
 
-#     async def generate_call_log(self, call_sid: str) -> Dict:
-#         """Generate comprehensive call log after call completion"""
+#     async def get_call_by_sid(self, call_sid: str) -> Optional[Dict]:
+#         """Get call record by Twilio Call SID"""
 #         try:
-#             print(f"Generating call log for call SID: {call_sid}")
+#             call = await self.db.calls.find_one({"call_sid": call_sid})
+#             return call
             
-#             # Find call by call_sid, not _id
+#         except Exception as e:
+#             print(f"Error getting call by SID: {e}")
+#             return None
+
+#     async def generate_call_log(self, call_sid: str) -> Dict:
+#         """Generate call log after call completion"""
+#         try:
+#             print(f"ðŸ”„ Starting call log generation for call: {call_sid}")
+            
+#             # Get call record
 #             call = await self.db.calls.find_one({"call_sid": call_sid})
             
 #             if not call:
-#                 print(f"Call not found with SID: {call_sid}")
+#                 print(f"âŒ Call not found for SID: {call_sid}")
 #                 return {
 #                     "success": False,
 #                     "error": "Call not found"
 #                 }
             
 #             call_id = str(call["_id"])
-#             print(f"Found call record with ID: {call_id}")
+#             print(f"âœ… Found call record with ID: {call_id}")
             
 #             # Get conversation record
 #             conversation = await self.db.conversations.find_one({
@@ -284,10 +280,11 @@
 #             })
             
 #             if not conversation:
-#                 print(f"No conversation found for call: {call_id}")
+#                 print(f"âš ï¸ No conversation found for call: {call_id}")
 #                 # Create minimal call log
 #                 call_log_data = {
 #                     "call_id": ObjectId(call_id),
+#                     "call_sid": call_sid,
 #                     "user_id": call.get("user_id"),
 #                     "summary": "Call completed with no conversation recorded",
 #                     "outcome": "no_answer",
@@ -299,7 +296,7 @@
 #                 }
                 
 #                 result = await self.db.call_logs.insert_one(call_log_data)
-#                 print(f"Call log generated successfully: {str(result.inserted_id)}")
+#                 print(f"âœ… Minimal call log generated: {str(result.inserted_id)}")
                 
 #                 return {
 #                     "success": True,
@@ -311,10 +308,11 @@
 #             messages = conversation.get("messages", [])
             
 #             if not messages or len(messages) == 0:
-#                 print(f"No messages in conversation for call: {call_id}")
+#                 print(f"âš ï¸ No messages in conversation for call: {call_id}")
 #                 # Create minimal call log
 #                 call_log_data = {
 #                     "call_id": ObjectId(call_id),
+#                     "call_sid": call_sid,
 #                     "user_id": call.get("user_id"),
 #                     "summary": "Call completed with no conversation",
 #                     "outcome": "no_answer",
@@ -326,7 +324,7 @@
 #                 }
                 
 #                 result = await self.db.call_logs.insert_one(call_log_data)
-#                 print(f"Call log generated successfully: {str(result.inserted_id)}")
+#                 print(f"âœ… Minimal call log generated: {str(result.inserted_id)}")
                 
 #                 return {
 #                     "success": True,
@@ -334,7 +332,7 @@
 #                     "call_log": call_log_data
 #                 }
             
-#             print(f"Analyzing conversation with {len(messages)} messages")
+#             print(f"ðŸ“ Analyzing conversation with {len(messages)} messages")
             
 #             # Analyze conversation with AI
 #             analysis = await self.ai_agent.analyze_call(call_id, messages)
@@ -345,6 +343,7 @@
 #             # Create call log
 #             call_log_data = {
 #                 "call_id": ObjectId(call_id),
+#                 "call_sid": call_sid,
 #                 "user_id": call.get("user_id"),
 #                 "summary": analysis.get("summary", "Call completed"),
 #                 "outcome": analysis.get("outcome", "unknown"),
@@ -358,7 +357,7 @@
 #             result = await self.db.call_logs.insert_one(call_log_data)
 #             call_log_id = str(result.inserted_id)
             
-#             print(f"Call log generated successfully: {call_log_id}")
+#             print(f"âœ… Call log generated successfully: {call_log_id}")
 #             print(f"   Summary: {analysis.get('summary', 'N/A')}")
 #             print(f"   Outcome: {analysis.get('outcome', 'N/A')}")
 #             print(f"   Sentiment: {analysis.get('sentiment', 'N/A')}")
@@ -370,7 +369,7 @@
 #             }
             
 #         except Exception as e:
-#             print(f"Error generating call log: {e}")
+#             print(f"âŒ Error generating call log: {e}")
 #             import traceback
 #             traceback.print_exc()
 #             return {
@@ -392,71 +391,112 @@
 #                 }
             
 #             messages = conversation.get("messages", [])
-#             transcript_lines = []
             
-#             for msg in messages:
-#                 role = msg.get("role", "unknown").upper()
-#                 content = msg.get("content", "")
-#                 timestamp = msg.get("timestamp", datetime.utcnow())
-#                 transcript_lines.append({
-#                     "timestamp": timestamp.isoformat(),
-#                     "role": role,
-#                     "content": content
-#                 })
+#             if not messages:
+#                 return {
+#                     "success": True,
+#                     "transcript": "No conversation recorded"
+#                 }
+            
+#             # Generate transcript
+#             transcript = await self.ai_agent.generate_transcript(messages)
             
 #             return {
 #                 "success": True,
-#                 "transcript": transcript_lines,
-#                 "message_count": len(messages)
+#                 "transcript": transcript
 #             }
             
 #         except Exception as e:
+#             print(f"Error getting call transcript: {e}")
 #             return {
 #                 "success": False,
 #                 "error": str(e)
 #             }
 
-#     async def get_call_statistics(self, user_id: str) -> Dict:
-#         """Get call statistics for a user"""
+#     async def generate_call_summary(self, call_id: str) -> Dict:
+#         """Generate a summary of the call using AI"""
 #         try:
-#             pipeline = [
-#                 {"$match": {"user_id": user_id}},
-#                 {
-#                     "$group": {
-#                         "_id": None,
-#                         "total_calls": {"$sum": 1},
-#                         "completed_calls": {
-#                             "$sum": {"$cond": [{"$eq": ["$status", "completed"]}, 1, 0]}
-#                         },
-#                         "failed_calls": {
-#                             "$sum": {"$cond": [{"$eq": ["$status", "failed"]}, 1, 0]}
-#                         },
-#                         "total_duration": {"$sum": "$duration"},
-#                         "avg_duration": {"$avg": "$duration"}
-#                     }
-#                 }
-#             ]
+#             # Get conversation
+#             conversation = await self.get_conversation(call_id)
             
-#             result = await self.db.calls.aggregate(pipeline).to_list(1)
-            
-#             if result:
-#                 stats = result[0]
+#             if not conversation or not conversation.get("messages"):
 #                 return {
-#                     "success": True,
-#                     "total_calls": stats.get("total_calls", 0),
-#                     "completed_calls": stats.get("completed_calls", 0),
-#                     "failed_calls": stats.get("failed_calls", 0),
-#                     "total_duration": stats.get("total_duration", 0),
-#                     "average_duration": stats.get("avg_duration", 0)
+#                     "success": False,
+#                     "error": "No conversation found"
 #                 }
+            
+#             # Generate summary using AI agent
+#             summary = await self.ai_agent.generate_summary(
+#                 conversation["messages"]
+#             )
+            
+#             # Extract booking details if applicable
+#             booking_details = await self.ai_agent.extract_booking_details(
+#                 conversation["messages"]
+#             )
             
 #             return {
 #                 "success": True,
-#                 "total_calls": 0,
-#                 "completed_calls": 0,
-#                 "failed_calls": 0,
-#                 "total_duration": 0,
-#                 "average_duration": 0
+#                 "summary": summary,
+#                 "booking_details": booking_details.get("booking_details") if booking_details.get("success") else None
+#             }
+            
+#         except Exception as e:
+#             print(f"Error generating call summary: {e}")
+#             return {
+#                 "success": False,
+#                 "error": str(e)
+#             }
+
+#     async def end_call(self, call_sid: str) -> bool:
+#         """End an active call"""
+#         try:
+#             # Update call status
+#             success = await self.update_call_status(
+#                 call_sid=call_sid,
+#                 status="completed"
+#             )
+            
+#             # You could also use Twilio API to actually end the call
+#             # self.twilio.end_call(call_sid)
+            
+#             return success
+            
+#         except Exception as e:
+#             print(f"Error ending call: {e}")
+#             return False
+
+#     async def get_call_statistics(self, user_id: str) -> Dict:
+#         """Get call statistics for a user"""
+#         try:
+#             # Get all calls for user
+#             calls = await self.db.calls.find({"user_id": user_id}).to_list(length=None)
+            
+#             if not calls:
+#                 return {
+#                     "success": True,
+#                     "total_calls": 0,
+#                     "completed_calls": 0,
+#                     "failed_calls": 0,
+#                     "total_duration": 0,
+#                     "average_duration": 0
+#                 }
+            
+#             total_calls = len(calls)
+#             completed_calls = len([c for c in calls if c.get("status") == "completed"])
+#             failed_calls = len([c for c in calls if c.get("status") == "failed"])
+            
+#             durations = [c.get("duration", 0) for c in calls if c.get("duration")]
+#             total_duration = sum(durations)
+#             average_duration = total_duration / len(durations) if durations else 0
+            
+#             return {
+#                 "success": True,
+#                 "total_calls": total_calls,
+#                 "completed_calls": completed_calls,
+#                 "failed_calls": failed_calls,
+#                 "total_duration": total_duration,
+#                 "average_duration": round(average_duration, 2)
 #             }
             
 #         except Exception as e:
@@ -467,16 +507,18 @@
 #             }
 
 
+# # Helper function to get CallHandlerService instance
 # def get_call_handler(db: AsyncIOMotorDatabase) -> CallHandlerService:
-#     """Factory function to get CallHandlerService instance"""
+#     """Get CallHandlerService instance"""
 #     return CallHandlerService(db)
 
 
 
+
+
+
 # backend/app/services/call_handler.py - COMPLETE FIXED VERSION
-"""
-Call Handler Service - Manages call lifecycle and conversation flow
-"""
+
 import os
 from datetime import datetime
 from typing import Dict, Optional, List
@@ -601,16 +643,6 @@ class CallHandlerService:
             result = await self.db.calls.insert_one(call_data)
             call_data["_id"] = result.inserted_id
             
-            # Create conversation record
-            conversation_data = {
-                "call_id": result.inserted_id,
-                "messages": [],
-                "started_at": datetime.utcnow(),
-                "created_at": datetime.utcnow()
-            }
-            
-            await self.db.conversations.insert_one(conversation_data)
-            
             return call_data
             
         except Exception as e:
@@ -669,320 +701,38 @@ class CallHandlerService:
             print(f"Error updating call status: {e}")
             return False
 
-    async def add_message_to_conversation(
-        self,
-        call_id: str,
-        role: str,
-        content: str
-    ) -> bool:
-        """Add a message to the conversation"""
-        try:
-            message = {
-                "role": role,
-                "content": content,
-                "timestamp": datetime.utcnow()
-            }
-            
-            result = await self.db.conversations.update_one(
-                {"call_id": ObjectId(call_id)},
-                {
-                    "$push": {"messages": message},
-                    "$set": {"updated_at": datetime.utcnow()}
-                }
-            )
-            
-            if result.matched_count > 0:
-                print(f"Saved {role} message to conversation")
-            
-            return result.matched_count > 0
-            
-        except Exception as e:
-            print(f"Error adding message to conversation: {e}")
-            return False
-
     async def save_conversation_turn(
         self,
         call_id: str,
         role: str,
         content: str
     ) -> bool:
-        """Save a conversation turn (alias for add_message_to_conversation)"""
-        return await self.add_message_to_conversation(call_id, role, content)
+        """
+        âš ï¸ DEPRECATED: This method should NOT be called from voice.py
+        Messages are saved internally by ai_agent_service
+        This method is kept for backwards compatibility only
+        """
+        # DO NOTHING - ai_agent_service already saves messages
+        print(f"âš ï¸ WARNING: save_conversation_turn called but messages already saved by ai_agent")
+        return True
 
     async def get_conversation(self, call_id: str) -> Optional[Dict]:
-        """Get conversation for a call"""
+        """Get conversation record"""
         try:
+            if not ObjectId.is_valid(call_id):
+                return None
+            
             conversation = await self.db.conversations.find_one({
                 "call_id": ObjectId(call_id)
             })
+            
             return conversation
             
         except Exception as e:
             print(f"Error getting conversation: {e}")
             return None
 
-    async def get_call_by_sid(self, call_sid: str) -> Optional[Dict]:
-        """Get call record by Twilio Call SID"""
-        try:
-            call = await self.db.calls.find_one({"call_sid": call_sid})
-            return call
-            
-        except Exception as e:
-            print(f"Error getting call by SID: {e}")
-            return None
 
-    async def generate_call_log(self, call_sid: str) -> Dict:
-        """Generate call log after call completion"""
-        try:
-            print(f"🔄 Starting call log generation for call: {call_sid}")
-            
-            # Get call record
-            call = await self.db.calls.find_one({"call_sid": call_sid})
-            
-            if not call:
-                print(f"❌ Call not found for SID: {call_sid}")
-                return {
-                    "success": False,
-                    "error": "Call not found"
-                }
-            
-            call_id = str(call["_id"])
-            print(f"✅ Found call record with ID: {call_id}")
-            
-            # Get conversation record
-            conversation = await self.db.conversations.find_one({
-                "call_id": ObjectId(call_id)
-            })
-            
-            if not conversation:
-                print(f"⚠️ No conversation found for call: {call_id}")
-                # Create minimal call log
-                call_log_data = {
-                    "call_id": ObjectId(call_id),
-                    "call_sid": call_sid,
-                    "user_id": call.get("user_id"),
-                    "summary": "Call completed with no conversation recorded",
-                    "outcome": "no_answer",
-                    "sentiment": "neutral",
-                    "key_points": [],
-                    "transcript": "",
-                    "duration": call.get("duration", 0),
-                    "created_at": datetime.utcnow()
-                }
-                
-                result = await self.db.call_logs.insert_one(call_log_data)
-                print(f"✅ Minimal call log generated: {str(result.inserted_id)}")
-                
-                return {
-                    "success": True,
-                    "call_log_id": str(result.inserted_id),
-                    "call_log": call_log_data
-                }
-            
-            # Get messages from conversation
-            messages = conversation.get("messages", [])
-            
-            if not messages or len(messages) == 0:
-                print(f"⚠️ No messages in conversation for call: {call_id}")
-                # Create minimal call log
-                call_log_data = {
-                    "call_id": ObjectId(call_id),
-                    "call_sid": call_sid,
-                    "user_id": call.get("user_id"),
-                    "summary": "Call completed with no conversation",
-                    "outcome": "no_answer",
-                    "sentiment": "neutral",
-                    "key_points": [],
-                    "transcript": "",
-                    "duration": call.get("duration", 0),
-                    "created_at": datetime.utcnow()
-                }
-                
-                result = await self.db.call_logs.insert_one(call_log_data)
-                print(f"✅ Minimal call log generated: {str(result.inserted_id)}")
-                
-                return {
-                    "success": True,
-                    "call_log_id": str(result.inserted_id),
-                    "call_log": call_log_data
-                }
-            
-            print(f"📝 Analyzing conversation with {len(messages)} messages")
-            
-            # Analyze conversation with AI
-            analysis = await self.ai_agent.analyze_call(call_id, messages)
-            
-            # Generate transcript
-            transcript = await self.ai_agent.generate_transcript(messages)
-            
-            # Create call log
-            call_log_data = {
-                "call_id": ObjectId(call_id),
-                "call_sid": call_sid,
-                "user_id": call.get("user_id"),
-                "summary": analysis.get("summary", "Call completed"),
-                "outcome": analysis.get("outcome", "unknown"),
-                "sentiment": analysis.get("sentiment", "neutral"),
-                "key_points": analysis.get("key_points", []),
-                "transcript": transcript,
-                "duration": call.get("duration", 0),
-                "created_at": datetime.utcnow()
-            }
-            
-            result = await self.db.call_logs.insert_one(call_log_data)
-            call_log_id = str(result.inserted_id)
-            
-            print(f"✅ Call log generated successfully: {call_log_id}")
-            print(f"   Summary: {analysis.get('summary', 'N/A')}")
-            print(f"   Outcome: {analysis.get('outcome', 'N/A')}")
-            print(f"   Sentiment: {analysis.get('sentiment', 'N/A')}")
-            
-            return {
-                "success": True,
-                "call_log_id": call_log_id,
-                "call_log": call_log_data
-            }
-            
-        except Exception as e:
-            print(f"❌ Error generating call log: {e}")
-            import traceback
-            traceback.print_exc()
-            return {
-                "success": False,
-                "error": str(e)
-            }
-
-    async def get_call_transcript(self, call_id: str) -> Dict:
-        """Get formatted transcript for a call"""
-        try:
-            conversation = await self.db.conversations.find_one({
-                "call_id": ObjectId(call_id)
-            })
-            
-            if not conversation:
-                return {
-                    "success": False,
-                    "error": "Conversation not found"
-                }
-            
-            messages = conversation.get("messages", [])
-            
-            if not messages:
-                return {
-                    "success": True,
-                    "transcript": "No conversation recorded"
-                }
-            
-            # Generate transcript
-            transcript = await self.ai_agent.generate_transcript(messages)
-            
-            return {
-                "success": True,
-                "transcript": transcript
-            }
-            
-        except Exception as e:
-            print(f"Error getting call transcript: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
-
-    async def generate_call_summary(self, call_id: str) -> Dict:
-        """Generate a summary of the call using AI"""
-        try:
-            # Get conversation
-            conversation = await self.get_conversation(call_id)
-            
-            if not conversation or not conversation.get("messages"):
-                return {
-                    "success": False,
-                    "error": "No conversation found"
-                }
-            
-            # Generate summary using AI agent
-            summary = await self.ai_agent.generate_summary(
-                conversation["messages"]
-            )
-            
-            # Extract booking details if applicable
-            booking_details = await self.ai_agent.extract_booking_details(
-                conversation["messages"]
-            )
-            
-            return {
-                "success": True,
-                "summary": summary,
-                "booking_details": booking_details.get("booking_details") if booking_details.get("success") else None
-            }
-            
-        except Exception as e:
-            print(f"Error generating call summary: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
-
-    async def end_call(self, call_sid: str) -> bool:
-        """End an active call"""
-        try:
-            # Update call status
-            success = await self.update_call_status(
-                call_sid=call_sid,
-                status="completed"
-            )
-            
-            # You could also use Twilio API to actually end the call
-            # self.twilio.end_call(call_sid)
-            
-            return success
-            
-        except Exception as e:
-            print(f"Error ending call: {e}")
-            return False
-
-    async def get_call_statistics(self, user_id: str) -> Dict:
-        """Get call statistics for a user"""
-        try:
-            # Get all calls for user
-            calls = await self.db.calls.find({"user_id": user_id}).to_list(length=None)
-            
-            if not calls:
-                return {
-                    "success": True,
-                    "total_calls": 0,
-                    "completed_calls": 0,
-                    "failed_calls": 0,
-                    "total_duration": 0,
-                    "average_duration": 0
-                }
-            
-            total_calls = len(calls)
-            completed_calls = len([c for c in calls if c.get("status") == "completed"])
-            failed_calls = len([c for c in calls if c.get("status") == "failed"])
-            
-            durations = [c.get("duration", 0) for c in calls if c.get("duration")]
-            total_duration = sum(durations)
-            average_duration = total_duration / len(durations) if durations else 0
-            
-            return {
-                "success": True,
-                "total_calls": total_calls,
-                "completed_calls": completed_calls,
-                "failed_calls": failed_calls,
-                "total_duration": total_duration,
-                "average_duration": round(average_duration, 2)
-            }
-            
-        except Exception as e:
-            print(f"Error getting call statistics: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
-
-
-# Helper function to get CallHandlerService instance
 def get_call_handler(db: AsyncIOMotorDatabase) -> CallHandlerService:
-    """Get CallHandlerService instance"""
+    """Factory function to create CallHandlerService instance"""
     return CallHandlerService(db)

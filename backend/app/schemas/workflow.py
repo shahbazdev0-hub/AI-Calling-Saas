@@ -1,4 +1,4 @@
-# backend/app/schemas/workflow.py - MILESTONE 3 COMPLETE
+# backend/app/schemas/workflow.py - MILESTONE 3 without campaign builder 
 
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
@@ -52,3 +52,6 @@ class WorkflowResponse(BaseModel):
 
     class Config:
         populate_by_name = True
+
+
+

@@ -1,4 +1,4 @@
-# backend/app/api/v1/agents.py
+# backend/app/api/v1/agents.py without campaign builder 
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List, Optional
 from bson import ObjectId
@@ -37,3 +37,4 @@ async def test_agent(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to test agent: {str(e)}"
         )
+

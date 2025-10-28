@@ -1,321 +1,33 @@
-﻿// // frontend/src/Components/forms/AgentForm.jsx
-// import React, { useState, useEffect } from "react";
-// import { useForm } from "react-hook-form";
-// import { zodResolver } from "@hookform/resolvers/zod";
-// import { z } from "zod";
-// import { Bot, Save } from "lucide-react";
-// import Input from "../ui/Input";
-// import Button from "../ui/Button";
-// import Textarea from "../ui/Textarea";
-// import { voiceService } from "../../services/voice";
-// import toast from "react-hot-toast";
+﻿//  frontend/src/Components/forms/AgentForm.jsx - implemented campaign builder 
 
-// const agentSchema = z.object({
-//   name: z.string().min(1, 'Name is required').max(100),
-//   description: z.string().optional(),
-//   voice_id: z.string().min(1, 'Voice is required'),
-//   system_prompt: z.string().min(10, 'System prompt must be at least 10 characters'),
-//   greeting_message: z.string().min(1, 'Greeting message is required'),
-//   stability: z.number().min(0).max(1).default(0.5),
-//   similarity_boost: z.number().min(0).max(1).default(0.75)
-// });
-
-// const AgentForm = ({ agent = null, onSuccess, onCancel }) => {
-//   const [voices, setVoices] = useState([]);
-//   const [isLoading, setIsLoading] = useState(false);
-//   const [isTesting, setIsTesting] = useState(false);
-
-//   const {
-//     register,
-//     handleSubmit,
-//     formState: { errors },
-//     watch,
-//     setValue
-//   } = useForm({
-//     resolver: zodResolver(agentSchema),
-//     defaultValues: agent || {
-//       name: '',
-//       description: '',
-//       voice_id: '',
-//       system_prompt: 'You are a helpful and professional AI assistant for customer support. Be friendly, clear, and concise in your responses.',
-//       greeting_message: 'Hello! How can I help you today?',
-//       stability: 0.5,
-//       similarity_boost: 0.75
-//     }
-//   });
-
-//   const selectedVoiceId = watch('voice_id');
-//   const greetingMessage = watch('greeting_message');
-//   const stability = watch('stability');
-//   const similarityBoost = watch('similarity_boost');
-
-//   useEffect(() => {
-//     loadVoices();
-//   }, []);
-
-//   const loadVoices = async () => {
-//     try {
-//       const data = await voiceService.getAvailableVoices();
-//       // Handle the response structure correctly
-//       if (data && data.voices) {
-//         setVoices(data.voices);
-//       } else if (Array.isArray(data)) {
-//         setVoices(data);
-//       } else {
-//         console.error('Unexpected voices data format:', data);
-//         toast.error('Failed to load available voices');
-//       }
-//     } catch (error) {
-//       console.error('Failed to load voices:', error);
-//       toast.error('Failed to load available voices');
-//     }
-//   };
-
-//   const testVoice = async () => {
-//     if (!selectedVoiceId || !greetingMessage) {
-//       toast.error('Please select a voice and enter a greeting message');
-//       return;
-//     }
-
-//     setIsTesting(true);
-//     try {
-//       const result = await voiceService.testVoice({
-//         text: greetingMessage,
-//         voice_id: selectedVoiceId
-//       });
-      
-//       // Play audio if URL is provided
-//       if (result.audio_url) {
-//         const audio = new Audio(result.audio_url);
-//         audio.play();
-//       }
-      
-//       toast.success('Voice test initiated (mock response)');
-//     } catch (error) {
-//       console.error('Voice test failed:', error);
-//       toast.error('Failed to test voice');
-//     } finally {
-//       setIsTesting(false);
-//     }
-//   };
-
-//   const onSubmit = async (data) => {
-//     setIsLoading(true);
-//     try {
-//       const agentData = {
-//         name: data.name,
-//         description: data.description || null,
-//         voice_id: data.voice_id,
-//         system_prompt: data.system_prompt,
-//         greeting_message: data.greeting_message,
-//         voice_settings: {
-//           stability: data.stability,
-//           similarity_boost: data.similarity_boost
-//         },
-//         personality_traits: [],
-//         knowledge_base: {},
-//         is_active: true
-//       };
-
-//       let result;
-//       if (agent) {
-//         result = await voiceService.updateAgent(agent._id, agentData);
-//         toast.success('Agent updated successfully');
-//       } else {
-//         result = await voiceService.createAgent(agentData);
-//         toast.success('Agent created successfully');
-//       }
-
-//       if (onSuccess) {
-//         onSuccess(result);
-//       }
-//     } catch (error) {
-//       console.error('Failed to save agent:', error);
-//       toast.error(error.response?.data?.detail || 'Failed to save agent');
-//     } finally {
-//       setIsLoading(false);
-//     }
-//   };
-
-//   return (
-//     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-//       {/* Basic Information */}
-//       <div className="space-y-4">
-//         <div>
-//           <label className="block text-sm font-medium text-gray-700 mb-2">
-//             Agent Name *
-//           </label>
-//           <Input
-//             {...register('name')}
-//             placeholder="e.g., Customer Support Agent"
-//             error={errors.name?.message}
-//           />
-//         </div>
-
-//         <div>
-//           <label className="block text-sm font-medium text-gray-700 mb-2">
-//             Description (Optional)
-//           </label>
-//           <Textarea
-//             {...register('description')}
-//             placeholder="Brief description of this agent's purpose..."
-//             rows={2}
-//             error={errors.description?.message}
-//           />
-//         </div>
-//       </div>
-
-//       {/* Voice Settings */}
-//       <div className="space-y-4 pt-4 border-t">
-//         <h3 className="text-lg font-semibold text-gray-900">Voice Settings</h3>
-        
-//         <div>
-//           <label className="block text-sm font-medium text-gray-700 mb-2">
-//             Voice *
-//           </label>
-//           <select
-//             {...register('voice_id')}
-//             className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-//               errors.voice_id ? 'border-red-500' : 'border-gray-300'
-//             }`}
-//           >
-//             <option value="">Select a voice</option>
-//             {voices.map(voice => (
-//               <option key={voice.voice_id} value={voice.voice_id}>
-//                 {voice.name} - {voice.description}
-//               </option>
-//             ))}
-//           </select>
-//           {errors.voice_id && (
-//             <p className="text-red-500 text-sm mt-1">{errors.voice_id.message}</p>
-//           )}
-//         </div>
-
-//         <div>
-//           <label className="block text-sm font-medium text-gray-700 mb-2">
-//             Stability: {stability}
-//           </label>
-//           <input
-//             type="range"
-//             {...register('stability', { valueAsNumber: true })}
-//             min="0"
-//             max="1"
-//             step="0.01"
-//             className="w-full"
-//           />
-//           <p className="text-xs text-gray-500 mt-1">
-//             Higher values = more consistent, Lower values = more expressive
-//           </p>
-//         </div>
-
-//         <div>
-//           <label className="block text-sm font-medium text-gray-700 mb-2">
-//             Similarity Boost: {similarityBoost}
-//           </label>
-//           <input
-//             type="range"
-//             {...register('similarity_boost', { valueAsNumber: true })}
-//             min="0"
-//             max="1"
-//             step="0.01"
-//             className="w-full"
-//           />
-//           <p className="text-xs text-gray-500 mt-1">
-//             Higher values = closer to original voice
-//           </p>
-//         </div>
-//       </div>
-
-//       {/* Greeting & Prompt */}
-//       <div className="space-y-4 pt-4 border-t">
-//         <h3 className="text-lg font-semibold text-gray-900">Agent Behavior</h3>
-        
-//         <div>
-//           <label className="block text-sm font-medium text-gray-700 mb-2">
-//             Greeting Message *
-//           </label>
-//           <Textarea
-//             {...register('greeting_message')}
-//             placeholder="Hello! How can I help you today?"
-//             rows={2}
-//             error={errors.greeting_message?.message}
-//           />
-//           <Button
-//             type="button"
-//             variant="outline"
-//             size="sm"
-//             onClick={testVoice}
-//             isLoading={isTesting}
-//             className="mt-2"
-//             disabled={!selectedVoiceId || !greetingMessage}
-//           >
-//             Test Voice
-//           </Button>
-//         </div>
-
-//         <div>
-//           <label className="block text-sm font-medium text-gray-700 mb-2">
-//             System Prompt *
-//           </label>
-//           <Textarea
-//             {...register('system_prompt')}
-//             placeholder="Instructions for how the AI agent should behave..."
-//             rows={6}
-//             error={errors.system_prompt?.message}
-//           />
-//           <p className="text-xs text-gray-500 mt-1">
-//             Define the agent's personality, expertise, and conversation guidelines
-//           </p>
-//         </div>
-//       </div>
-
-//       {/* Form Actions */}
-//       <div className="flex justify-end space-x-3 pt-4 border-t">
-//         {onCancel && (
-//           <Button type="button" variant="outline" onClick={onCancel}>
-//             Cancel
-//           </Button>
-//         )}
-//         <Button type="submit" isLoading={isLoading}>
-//           <Save size={20} className="mr-2" />
-//           {agent ? 'Update Agent' : 'Create Agent'}
-//         </Button>
-//       </div>
-//     </form>
-//   );
-// };
-
-// export default AgentForm;
-
-
-
-
-
-// frontend/src/Components/forms/AgentForm.jsx
 import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Bot, Save } from "lucide-react";
+import { Bot, Save, Play } from "lucide-react";
 import Input from "../ui/Input";
 import Button from "../ui/Button";
 import Textarea from "../ui/Textarea";
 import { voiceService } from "../../services/voice";
+import { flowService } from "../../services/flow";
 import toast from "react-hot-toast";
 
+// ✅ SIMPLIFIED SCHEMA - Only essential fields
 const agentSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
   description: z.string().optional(),
   voice_id: z.string().min(1, 'Voice is required'),
-  system_prompt: z.string().min(10, 'System prompt must be at least 10 characters'),
-  greeting_message: z.string().min(1, 'Greeting message is required'),
+  workflow_id: z.string().optional(),
   stability: z.number().min(0).max(1).default(0.5),
   similarity_boost: z.number().min(0).max(1).default(0.75)
 });
 
 const AgentForm = ({ agent = null, onSuccess, onCancel }) => {
   const [voices, setVoices] = useState([]);
+  const [workflows, setWorkflows] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingVoices, setIsLoadingVoices] = useState(true);
+  const [isLoadingWorkflows, setIsLoadingWorkflows] = useState(true);
   const [isTesting, setIsTesting] = useState(false);
 
   const {
@@ -326,64 +38,103 @@ const AgentForm = ({ agent = null, onSuccess, onCancel }) => {
     setValue
   } = useForm({
     resolver: zodResolver(agentSchema),
-    defaultValues: agent || {
+    defaultValues: agent ? {
+      name: agent.name || '',
+      description: agent.description || '',
+      voice_id: agent.voice_id || '',
+      workflow_id: agent.workflow_id || '',
+      stability: agent.voice_settings?.stability || 0.5,
+      similarity_boost: agent.voice_settings?.similarity_boost || 0.75
+    } : {
       name: '',
       description: '',
       voice_id: '',
-      system_prompt: 'You are a helpful and professional AI assistant for customer support. Be friendly, clear, and concise in your responses.',
-      greeting_message: 'Hello! How can I help you today?',
+      workflow_id: '',
       stability: 0.5,
       similarity_boost: 0.75
     }
   });
 
   const selectedVoiceId = watch('voice_id');
-  const greetingMessage = watch('greeting_message');
+  const selectedWorkflowId = watch('workflow_id');
   const stability = watch('stability');
   const similarityBoost = watch('similarity_boost');
 
+  // Load ElevenLabs voices
   useEffect(() => {
     loadVoices();
   }, []);
 
+  // Load workflows
+  useEffect(() => {
+    loadWorkflows();
+  }, []);
+
   const loadVoices = async () => {
     try {
-      const data = await voiceService.getAvailableVoices();
-      // Handle the response structure correctly
-      if (data && data.voices) {
-        setVoices(data.voices);
-      } else if (Array.isArray(data)) {
-        setVoices(data);
+      setIsLoadingVoices(true);
+      const result = await voiceService.getAvailableVoices();
+      
+      if (result.voices && Array.isArray(result.voices)) {
+        setVoices(result.voices);
+        console.log('✅ Loaded voices:', result.voices.length);
       } else {
-        console.error('Unexpected voices data format:', data);
-        toast.error('Failed to load available voices');
+        console.error('❌ Invalid voices response:', result);
+        toast.error('Failed to load voices');
       }
     } catch (error) {
-      console.error('Failed to load voices:', error);
-      toast.error('Failed to load available voices');
+      console.error('❌ Error loading voices:', error);
+      toast.error('Failed to load voices');
+    } finally {
+      setIsLoadingVoices(false);
+    }
+  };
+
+  const loadWorkflows = async () => {
+    try {
+      setIsLoadingWorkflows(true);
+      const result = await flowService.getFlows();
+      
+      if (result.flows && Array.isArray(result.flows)) {
+        // Filter only active workflows
+        const activeWorkflows = result.flows.filter(w => w.active !== false);
+        setWorkflows(activeWorkflows);
+        console.log('✅ Loaded workflows:', activeWorkflows.length);
+      } else {
+        console.error('❌ Invalid workflows response:', result);
+        setWorkflows([]);
+      }
+    } catch (error) {
+      console.error('❌ Error loading workflows:', error);
+      toast.error('Failed to load workflows');
+      setWorkflows([]);
+    } finally {
+      setIsLoadingWorkflows(false);
     }
   };
 
   const testVoice = async () => {
-    if (!selectedVoiceId || !greetingMessage) {
-      toast.error('Please select a voice and enter a greeting message');
+    if (!selectedVoiceId) {
+      toast.error('Please select a voice first');
       return;
     }
 
-    setIsTesting(true);
     try {
+      setIsTesting(true);
+      
       const result = await voiceService.testVoice({
-        text: greetingMessage,
+        text: 'Hello! This is a test of my voice. How does it sound?',
         voice_id: selectedVoiceId
       });
       
-      // Play audio if URL is provided
-      if (result.audio_url) {
-        const audio = new Audio(result.audio_url);
+      if (result.success && result.audio_url) {
+        // Play the audio
+        const audio = new Audio(`${import.meta.env.VITE_API_BASE_URL.replace('/api/v1', '')}${result.audio_url}`);
         audio.play();
+        toast.success('Playing voice sample');
+      } else {
+        toast.error('Failed to test voice');
       }
-      
-      toast.success('Voice test initiated (mock response)');
     } catch (error) {
       console.error('Voice test failed:', error);
       toast.error('Failed to test voice');
@@ -395,36 +146,41 @@ const AgentForm = ({ agent = null, onSuccess, onCancel }) => {
   const onSubmit = async (data) => {
     setIsLoading(true);
     try {
+      // ✅ Prepare agent data matching backend schema
       const agentData = {
         name: data.name,
         description: data.description || null,
         voice_id: data.voice_id,
-        system_prompt: data.system_prompt,
-        greeting_message: data.greeting_message,
-        voice_settings: {
-          stability: data.stability,
-          similarity_boost: data.similarity_boost
-        },
-        personality_traits: [],
-        knowledge_base: {},
+        workflow_id: data.workflow_id || null,
+        system_prompt: "You are a helpful and professional AI assistant for customer support. Be friendly, clear, and concise in your responses.",
+        greeting_message: "Hello! How can I help you today?",
+        stability: data.stability,
+        similarity_boost: data.similarity_boost,
         is_active: true
       };
 
+      console.log('📤 Sending agent data:', agentData);
+
       let result;
       if (agent) {
+        // Update existing agent
         result = await voiceService.updateAgent(agent._id, agentData);
-        toast.success('Agent updated successfully');
+        toast.success('Agent updated successfully!');
       } else {
+        // Create new agent
         result = await voiceService.createAgent(agentData);
-        toast.success('Agent created successfully');
+        toast.success('Agent created successfully!');
       }
+
+      console.log('✅ Agent saved:', result);
 
       if (onSuccess) {
         onSuccess(result);
       }
     } catch (error) {
-      console.error('Failed to save agent:', error);
-      toast.error(error.response?.data?.detail || 'Failed to save agent');
+      console.error('❌ Failed to save agent:', error);
+      const errorMessage = error.response?.data?.detail || error.message || 'Failed to save agent';
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -434,20 +190,24 @@ const AgentForm = ({ agent = null, onSuccess, onCancel }) => {
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       {/* Basic Information */}
       <div className="space-y-4">
+        <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+          <Bot size={20} className="mr-2 text-[#f2070d]" />
+          Agent Information
+        </h3>
+
         <div>
-          <label className="block text-sm font-semibold text-[#2C2C2C] mb-2">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
             Agent Name *
           </label>
           <Input
             {...register('name')}
             placeholder="e.g., Customer Support Agent"
             error={errors.name?.message}
-            className="w-full px-4 py-3 border border-[#e5e5e5] rounded-lg focus:ring-2 focus:ring-[#f2070d] focus:border-transparent transition-all"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-[#2C2C2C] mb-2">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
             Description (Optional)
           </label>
           <Textarea
@@ -455,145 +215,157 @@ const AgentForm = ({ agent = null, onSuccess, onCancel }) => {
             placeholder="Brief description of this agent's purpose..."
             rows={2}
             error={errors.description?.message}
-            className="w-full px-4 py-3 border border-[#e5e5e5] rounded-lg focus:ring-2 focus:ring-[#f2070d] focus:border-transparent transition-all"
           />
+        </div>
+      </div>
+
+      {/* AI Campaign Workflow Selection */}
+      <div className="space-y-4 pt-6 border-t">
+        <h3 className="text-lg font-semibold text-gray-900">
+          AI Campaign Flow (Optional)
+        </h3>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Conversation Workflow
+          </label>
+          
+          {isLoadingWorkflows ? (
+            <div className="text-sm text-gray-500">Loading workflows...</div>
+          ) : (
+            <>
+              <select
+                {...register('workflow_id')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#f2070d] focus:border-transparent"
+              >
+                <option value="">No Workflow (OpenAI Only)</option>
+                {workflows.map(workflow => (
+                  <option key={workflow._id} value={workflow._id}>
+                    {workflow.name}
+                    {workflow.description ? ` - ${workflow.description}` : ''}
+                  </option>
+                ))}
+              </select>
+              
+              <p className="text-xs text-gray-500 mt-2">
+                {selectedWorkflowId 
+                  ? '✅ Agent will follow this workflow first, then use OpenAI for undefined queries'
+                  : 'Agent will use OpenAI responses only'
+                }
+              </p>
+            </>
+          )}
         </div>
       </div>
 
       {/* Voice Settings */}
-      <div className="space-y-4 pt-6 border-t border-[#e5e5e5]">
-        <h3 className="text-xl font-bold text-[#2C2C2C] flex items-center">
-          <Bot size={20} className="mr-2 text-[#f2070d]" />
+      <div className="space-y-4 pt-6 border-t">
+        <h3 className="text-lg font-semibold text-gray-900">
           Voice Settings
         </h3>
         
         <div>
-          <label className="block text-sm font-semibold text-[#2C2C2C] mb-2">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
             Voice *
           </label>
-          <select
-            {...register('voice_id')}
-            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-[#f2070d] focus:border-transparent transition-all ${
-              errors.voice_id ? 'border-[#f2070d]' : 'border-[#e5e5e5]'
-            }`}
-          >
-            <option value="">Select a voice</option>
-            {voices.map(voice => (
-              <option key={voice.voice_id} value={voice.voice_id}>
-                {voice.name} - {voice.description}
-              </option>
-            ))}
-          </select>
-          {errors.voice_id && (
-            <p className="text-[#f2070d] text-sm mt-1 font-medium">{errors.voice_id.message}</p>
+          
+          {isLoadingVoices ? (
+            <div className="text-sm text-gray-500">Loading voices...</div>
+          ) : (
+            <>
+              <select
+                {...register('voice_id')}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-[#f2070d] focus:border-transparent ${
+                  errors.voice_id ? 'border-red-500' : 'border-gray-300'
+                }`}
+              >
+                <option value="">Select a voice</option>
+                {voices.map(voice => (
+                  <option key={voice.voice_id} value={voice.voice_id}>
+                    {voice.name}
+                    {voice.labels?.accent ? ` (${voice.labels.accent})` : ''}
+                    {voice.labels?.gender ? ` - ${voice.labels.gender}` : ''}
+                  </option>
+                ))}
+              </select>
+              
+              {errors.voice_id && (
+                <p className="text-sm text-red-500 mt-1">{errors.voice_id.message}</p>
+              )}
+              
+              {selectedVoiceId && (
+                <Button
+                  type="button"
+                  onClick={testVoice}
+                  disabled={isTesting}
+                  variant="outline"
+                  className="mt-2"
+                >
+                  <Play size={16} className="mr-2" />
+                  {isTesting ? 'Testing...' : 'Test Voice'}
+                </Button>
+              )}
+            </>
           )}
         </div>
 
-        <div>
-          <label className="block text-sm font-semibold text-[#2C2C2C] mb-2">
-            Stability: <span className="text-[#f2070d] font-bold">{stability.toFixed(2)}</span>
-          </label>
-          <input
-            type="range"
-            {...register('stability', { valueAsNumber: true })}
-            min="0"
-            max="1"
-            step="0.01"
-            className="w-full h-2 bg-[#e5e5e5] rounded-lg appearance-none cursor-pointer accent-[#f2070d]"
-            style={{
-              background: `linear-gradient(to right, #f2070d 0%, #f2070d ${stability * 100}%, #e5e5e5 ${stability * 100}%, #e5e5e5 100%)`
-            }}
-          />
-          <p className="text-xs text-gray-600 mt-2">
-            Higher values = more consistent, Lower values = more expressive
-          </p>
-        </div>
+        {/* Voice Quality Settings */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Stability: {stability.toFixed(2)}
+            </label>
+            <input
+              type="range"
+              {...register('stability', { valueAsNumber: true })}
+              min="0"
+              max="1"
+              step="0.01"
+              className="w-full"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Higher = more consistent, Lower = more expressive
+            </p>
+          </div>
 
-        <div>
-          <label className="block text-sm font-semibold text-[#2C2C2C] mb-2">
-            Similarity Boost: <span className="text-[#f2070d] font-bold">{similarityBoost.toFixed(2)}</span>
-          </label>
-          <input
-            type="range"
-            {...register('similarity_boost', { valueAsNumber: true })}
-            min="0"
-            max="1"
-            step="0.01"
-            className="w-full h-2 bg-[#e5e5e5] rounded-lg appearance-none cursor-pointer accent-[#f2070d]"
-            style={{
-              background: `linear-gradient(to right, #f2070d 0%, #f2070d ${similarityBoost * 100}%, #e5e5e5 ${similarityBoost * 100}%, #e5e5e5 100%)`
-            }}
-          />
-          <p className="text-xs text-gray-600 mt-2">
-            Higher values = closer to original voice
-          </p>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Similarity Boost: {similarityBoost.toFixed(2)}
+            </label>
+            <input
+              type="range"
+              {...register('similarity_boost', { valueAsNumber: true })}
+              min="0"
+              max="1"
+              step="0.01"
+              className="w-full"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Higher = closer to original voice
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* Greeting & Prompt */}
-      <div className="space-y-4 pt-6 border-t border-[#e5e5e5]">
-        <h3 className="text-xl font-bold text-[#2C2C2C]">Agent Behavior</h3>
-        
-        <div>
-          <label className="block text-sm font-semibold text-[#2C2C2C] mb-2">
-            Greeting Message *
-          </label>
-          <Textarea
-            {...register('greeting_message')}
-            placeholder="Hello! How can I help you today?"
-            rows={2}
-            error={errors.greeting_message?.message}
-            className="w-full px-4 py-3 border border-[#e5e5e5] rounded-lg focus:ring-2 focus:ring-[#f2070d] focus:border-transparent transition-all"
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={testVoice}
-            isLoading={isTesting}
-            className="mt-3 bg-gradient-to-r from-[#f2070d] to-[#FF6B6B] hover:from-[#d10609] hover:to-[#e05555] text-white px-4 py-2 rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all border-0"
-            disabled={!selectedVoiceId || !greetingMessage}
-          >
-            Test Voice
-          </Button>
-        </div>
-
-        <div>
-          <label className="block text-sm font-semibold text-[#2C2C2C] mb-2">
-            System Prompt *
-          </label>
-          <Textarea
-            {...register('system_prompt')}
-            placeholder="Instructions for how the AI agent should behave..."
-            rows={6}
-            error={errors.system_prompt?.message}
-            className="w-full px-4 py-3 border border-[#e5e5e5] rounded-lg focus:ring-2 focus:ring-[#f2070d] focus:border-transparent transition-all"
-          />
-          <p className="text-xs text-gray-600 mt-2">
-            Define the agent's personality, expertise, and conversation guidelines
-          </p>
-        </div>
-      </div>
-
-      {/* Form Actions */}
-      <div className="flex justify-end space-x-3 pt-6 border-t border-[#e5e5e5]">
+      {/* Actions */}
+      <div className="flex items-center justify-end space-x-3 pt-6 border-t">
         {onCancel && (
-          <Button 
-            type="button" 
-            variant="outline" 
-            onClick={onCancel}
-            className="bg-white border-2 border-[#e5e5e5] text-[#2C2C2C] px-6 py-3 rounded-lg font-semibold hover:bg-[#f8f8f8] hover:border-[#2C2C2C] transition-all"
-          >
+          <Button type="button" onClick={onCancel} variant="outline">
             Cancel
           </Button>
         )}
-        <Button 
-          type="submit" 
-          isLoading={isLoading}
-          className="bg-gradient-to-r from-[#f2070d] to-[#FF6B6B] hover:from-[#d10609] hover:to-[#e05555] text-white px-6 py-3 rounded-lg font-semibold shadow-xl hover:shadow-2xl transition-all flex items-center"
-        >
-          <Save size={20} className="mr-2" />
-          {agent ? 'Update Agent' : 'Create Agent'}
+        <Button type="submit" disabled={isLoading || isLoadingVoices}>
+          {isLoading ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save size={20} className="mr-2" />
+              {agent ? 'Update Agent' : 'Create Agent'}
+            </>
+          )}
         </Button>
       </div>
     </form>

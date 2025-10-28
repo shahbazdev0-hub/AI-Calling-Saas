@@ -1,13 +1,18 @@
-# backend/app/schemas/__init__.py
+# backend/app/schemas/__init__.py - UPDATED
 """
 Pydantic Schemas Package
-
-Contains all request/response schemas for API validation.
 """
 
 from .user import UserCreate, UserUpdate, UserResponse
 from .auth import Token, TokenData, UserLogin, PasswordReset, PasswordResetConfirm, EmailVerification
 from .demo import DemoBookingCreate, DemoBookingResponse
+from .appointment import (  # ✅ NEW
+    AppointmentCreate,
+    AppointmentUpdate,
+    AppointmentResponse,
+    AvailabilityRequest,
+    AvailabilityResponse
+)
 
 __all__ = [
     "UserCreate",
@@ -21,4 +26,10 @@ __all__ = [
     "EmailVerification",
     "DemoBookingCreate",
     "DemoBookingResponse",
+    # ✅ NEW
+    "AppointmentCreate",
+    "AppointmentUpdate",
+    "AppointmentResponse",
+    "AvailabilityRequest",
+    "AvailabilityResponse",
 ]
