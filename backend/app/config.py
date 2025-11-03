@@ -312,7 +312,7 @@ class Settings(BaseSettings):
     # ============================================
     ELEVENLABS_API_KEY: Optional[str] = None
     ELEVENLABS_VOICE_ID: Optional[str] = None
-    ELEVENLABS_MODEL_ID: str = "eleven_monolingual_v1"
+    ELEVENLABS_MODEL_ID: str = "eleven_turbo_v2_5"
     
     # ============================================
     # MILESTONE 2 - WEBSOCKET CONFIGURATION

@@ -115,3 +115,56 @@ footer h3 {
   -ms-overflow-style: none; /* IE and Edge */
   scrollbar-width: none; /* Firefox */
 }
+/* Custom Slider Styles for Voice Settings */
+input[type="range"].slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type="range"].slider-thumb::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #f2070d;
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+input[type="range"].slider-thumb::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #f2070d;
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+input[type="range"].slider-thumb::-webkit-slider-runnable-track {
+  height: 8px;
+  background: linear-gradient(to right, #e5e7eb 0%, #f2070d 100%);
+  border-radius: 4px;
+}
+
+input[type="range"].slider-thumb::-moz-range-track {
+  height: 8px;
+  background: linear-gradient(to right, #e5e7eb 0%, #f2070d 100%);
+  border-radius: 4px;
+}
+
+input[type="range"].slider-thumb:focus {
+  outline: none;
+}
+
+input[type="range"].slider-thumb:focus::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px rgba(242, 7, 13, 0.2);
+}
+
+input[type="range"].slider-thumb:focus::-moz-range-thumb {
+  box-shadow: 0 0 0 3px rgba(242, 7, 13, 0.2);
+}

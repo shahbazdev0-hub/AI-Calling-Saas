@@ -146,7 +146,7 @@ const AgentForm = ({ agent = null, onSuccess, onCancel }) => {
   const onSubmit = async (data) => {
     setIsLoading(true);
     try {
-      // ✅ Prepare agent data matching backend schema
+      // ✅ CRITICAL FIX: Send voice_settings as a nested object
       const agentData = {
         name: data.name,
         description: data.description || null,
@@ -154,8 +154,12 @@ const AgentForm = ({ agent = null, onSuccess, onCancel }) => {
         workflow_id: data.workflow_id || null,
         system_prompt: "You are a helpful and professional AI assistant for customer support. Be friendly, clear, and concise in your responses.",
         greeting_message: "Hello! How can I help you today?",
-        stability: data.stability,
-        similarity_boost: data.similarity_boost,
+        voice_settings: {  // ✅ FIX: Send as nested object
+          stability: parseFloat(data.stability),
+          similarity_boost: parseFloat(data.similarity_boost)
+        },
+        personality_traits: [],
+        knowledge_base: {},
         is_active: true
       };
 
@@ -172,15 +176,12 @@ const AgentForm = ({ agent = null, onSuccess, onCancel }) => {
         toast.success('Agent created successfully!');
       }
 
-      console.log('✅ Agent saved:', result);
-
       if (onSuccess) {
         onSuccess(result);
       }
     } catch (error) {
       console.error('❌ Failed to save agent:', error);
-      const errorMessage = error.response?.data?.detail || error.message || 'Failed to save agent';
-      toast.error(errorMessage);
+      toast.error(error.response?.data?.detail || 'Failed to save agent');
     } finally {
       setIsLoading(false);
     }
@@ -188,11 +189,25 @@ const AgentForm = ({ agent = null, onSuccess, onCancel }) => {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center space-x-3 pb-4 border-b">
+        <div className="p-2 bg-[#f2070d]/10 rounded-lg">
+          <Bot className="w-6 h-6 text-[#f2070d]" />
+        </div>
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">
+            {agent ? 'Edit Agent' : 'Create New Agent'}
+          </h2>
+          <p className="text-sm text-gray-500">
+            Configure your AI voice agent settings
+          </p>
+        </div>
+      </div>
+
       {/* Basic Information */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-          <Bot size={20} className="mr-2 text-[#f2070d]" />
-          Agent Information
+        <h3 className="text-lg font-semibold text-gray-900">
+          🤖 Agent Information
         </h3>
 
         <div>
@@ -213,16 +228,16 @@ const AgentForm = ({ agent = null, onSuccess, onCancel }) => {
           <Textarea
             {...register('description')}
             placeholder="Brief description of this agent's purpose..."
-            rows={2}
+            rows={3}
             error={errors.description?.message}
           />
         </div>
       </div>
 
-      {/* AI Campaign Workflow Selection */}
+      {/* Workflow Selection */}
       <div className="space-y-4 pt-6 border-t">
         <h3 className="text-lg font-semibold text-gray-900">
-          AI Campaign Flow (Optional)
+          🔄 AI Campaign Flow (Optional)
         </h3>
         
         <div>
@@ -261,7 +276,7 @@ const AgentForm = ({ agent = null, onSuccess, onCancel }) => {
       {/* Voice Settings */}
       <div className="space-y-4 pt-6 border-t">
         <h3 className="text-lg font-semibold text-gray-900">
-          Voice Settings
+          🎙️ Voice Settings
         </h3>
         
         <div>
@@ -321,7 +336,7 @@ const AgentForm = ({ agent = null, onSuccess, onCancel }) => {
               min="0"
               max="1"
               step="0.01"
-              className="w-full"
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider-thumb"
             />
             <p className="text-xs text-gray-500 mt-1">
               Higher = more consistent, Lower = more expressive
@@ -338,7 +353,7 @@ const AgentForm = ({ agent = null, onSuccess, onCancel }) => {
               min="0"
               max="1"
               step="0.01"
-              className="w-full"
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider-thumb"
             />
             <p className="text-xs text-gray-500 mt-1">
               Higher = closer to original voice
