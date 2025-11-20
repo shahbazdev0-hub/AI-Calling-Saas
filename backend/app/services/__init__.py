@@ -1,4 +1,5 @@
 # # backend/app/services/__init__.py - UPDATED
+
 # """
 # Services Package
 # """
@@ -9,8 +10,9 @@
 # from .ai_agent import ai_agent_service
 # from .elevenlabs import elevenlabs_service
 # from .call_handler import CallHandlerService, get_call_handler
-# from .google_calendar import google_calendar_service  # ✅ NEW
-# from .appointment import appointment_service  # ✅ NEW
+# from .google_calendar import google_calendar_service
+# from .appointment import appointment_service
+# from .workflow_engine import workflow_engine  # ✅ NEW
 
 # __all__ = [
 #     "email_service",
@@ -20,11 +22,10 @@
 #     "elevenlabs_service",
 #     "CallHandlerService",
 #     "get_call_handler",
-#     "google_calendar_service",  # ✅ NEW
-#     "appointment_service",  # ✅ NEW
+#     "google_calendar_service",
+#     "appointment_service",
+#     "workflow_engine",  # ✅ NEW
 # ]
-
-
 
 
 # backend/app/services/__init__.py - UPDATED
@@ -41,7 +42,8 @@ from .elevenlabs import elevenlabs_service
 from .call_handler import CallHandlerService, get_call_handler
 from .google_calendar import google_calendar_service
 from .appointment import appointment_service
-from .workflow_engine import workflow_engine  # ✅ NEW
+from .workflow_engine import workflow_engine
+from .customer import customer_service  # ✅ NEW
 
 __all__ = [
     "email_service",
@@ -53,5 +55,6 @@ __all__ = [
     "get_call_handler",
     "google_calendar_service",
     "appointment_service",
-    "workflow_engine",  # ✅ NEW
+    "workflow_engine",
+    "customer_service",  # ✅ NEW
 ]

@@ -1,6 +1,7 @@
-# backend/app/services/sms.py - COMPLETE FIXED VERSION
+# backend/app/services/sms.py - COMPLETE WITH ENHANCED LOGGING & PHONE NUMBER FIXES
 
 import os
+import re
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 from twilio.rest import Client
@@ -33,7 +34,7 @@ class SMSService:
             phone_number = os.getenv("TWILIO_PHONE_NUMBER")
             
             if account_sid and auth_token:
-                # Strip spaces
+                # Strip spaces and any hidden characters
                 account_sid = account_sid.strip()
                 auth_token = auth_token.strip()
                 if phone_number:
@@ -50,6 +51,34 @@ class SMSService:
         except Exception as e:
             logger.error(f"❌ SMS Service: Failed to initialize Twilio - {e}")
             self._is_configured = False
+
+    def _validate_phone_numbers(self, to_number: str, from_number: str) -> bool:
+        """
+        Validate that to and from numbers are different
+        """
+        try:
+            # Normalize phone numbers for comparison
+            def normalize_phone(phone):
+                # Remove all non-digit characters except +
+                phone = re.sub(r'[^\d+]', '', phone)
+                # Keep last 10 digits for comparison (US numbers)
+                if len(phone) > 10:
+                    return phone[-10:]
+                return phone
+            
+            to_normalized = normalize_phone(to_number)
+            from_normalized = normalize_phone(from_number)
+            
+            # Check if numbers are the same
+            if to_normalized == from_normalized:
+                logger.error(f"❌ SMS Validation Failed: 'To' and 'From' numbers are the same: {to_number}")
+                return False
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Error validating phone numbers: {e}")
+            return True  # Allow sending if validation fails
     
     def is_configured(self) -> bool:
         """Check if SMS service is configured"""
@@ -67,10 +96,17 @@ class SMSService:
         message: str,
         from_number: Optional[str] = None,
         user_id: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        call_id: Optional[str] = None,
+        campaign_id: Optional[str] = None,
+        automation_id: Optional[str] = None,
+        customer_name: Optional[str] = None,
+        customer_email: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Send SMS message
+        Send SMS message and create log entries
+        
+        ✅ UPDATED: Enhanced logging and phone number cleaning
         
         Args:
             to_number: Recipient phone number
@@ -78,6 +114,11 @@ class SMSService:
             from_number: Sender phone number (optional)
             user_id: User ID (optional)
             metadata: Additional metadata (optional)
+            call_id: Associated call ID (optional)
+            campaign_id: Associated campaign ID (optional)
+            automation_id: Associated automation ID (optional)
+            customer_name: Customer name (optional)
+            customer_email: Customer email (optional)
             
         Returns:
             Dict with success status and details
@@ -85,18 +126,40 @@ class SMSService:
         
         # Check if configured
         if not self._is_configured:
-            logger.warning("⚠️ SMS Service not configured - skipping SMS send")
+            logger.warning("⚠️ SMS Service not configured")
             return {
                 "success": False,
                 "error": "SMS service not configured. Please set up Twilio credentials."
             }
         
+        # ✅ FIX: Clean phone numbers - strip whitespace and ensure format
+        from_number = (from_number or self.default_from or "").strip()
+        to_number = to_number.strip()
+        
+        # ✅ FIX: Validate phone numbers
+        if not self._validate_phone_numbers(to_number, from_number):
+            return {
+                "success": False,
+                "error": f"Cannot send SMS: 'To' and 'From' numbers cannot be the same",
+                "error_code": "SAME_NUMBER"
+            }
+        
         try:
-            from_number = from_number or self.default_from
-            
-            logger.info(f"📱 Sending SMS to {to_number}")
-            logger.info(f"   From: {from_number}")
+            # ✅ ENHANCED LOGGING
+            logger.info(f"\n{'='*80}")
+            logger.info(f"📱 SENDING SMS VIA TWILIO")
+            logger.info(f"{'='*80}")
+            logger.info(f"   From: '{from_number}' (length: {len(from_number)})")
+            logger.info(f"   To: '{to_number}' (length: {len(to_number)})")
             logger.info(f"   Message: {message[:50]}...")
+            logger.info(f"   Account SID: {self.client.account_sid[:10]}...")
+            logger.info(f"{'='*80}\n")
+            
+            # ✅ FIX: Ensure clean phone number format
+            if not from_number.startswith('+'):
+                from_number = '+' + from_number.lstrip('+')
+            if not to_number.startswith('+'):
+                to_number = '+' + to_number.lstrip('+')
             
             # Send via Twilio
             twilio_message = self.client.messages.create(
@@ -105,10 +168,11 @@ class SMSService:
                 to=to_number
             )
             
-            logger.info(f"✅ SMS sent successfully! SID: {twilio_message.sid}")
+            logger.info(f"✅ SMS sent successfully!")
+            logger.info(f"   Twilio SID: {twilio_message.sid}")
+            logger.info(f"   Status: {twilio_message.status}")
             
-            # Save to database
-            db = await self.get_db()
+            # Prepare SMS data
             sms_data = {
                 "user_id": user_id,
                 "to_number": to_number,
@@ -123,7 +187,33 @@ class SMSService:
                 "sent_at": datetime.utcnow()
             }
             
-            result = await db.sms_messages.insert_one(sms_data)
+            # Get database
+            db = await self.get_db()
+            
+            # ✅ Store in sms_messages collection
+            result = await db.sms_messages.insert_one(sms_data.copy())
+            
+            # ✅ Store in sms_logs collection with additional context
+            sms_log_data = sms_data.copy()
+            if call_id:
+                sms_log_data["call_id"] = call_id
+            if campaign_id:
+                sms_log_data["campaign_id"] = campaign_id
+            if automation_id:
+                sms_log_data["automation_id"] = automation_id
+            if customer_name:
+                sms_log_data["customer_name"] = customer_name
+            if customer_email:
+                sms_log_data["customer_email"] = customer_email
+            
+            sms_log_data["is_reply"] = False
+            sms_log_data["has_replies"] = False
+            sms_log_data["reply_count"] = 0
+            sms_log_data["delivered_at"] = None
+            
+            await db.sms_logs.insert_one(sms_log_data)
+            
+            logger.info(f"✅ SMS logged in both collections")
             
             return {
                 "success": True,
@@ -131,18 +221,26 @@ class SMSService:
                 "twilio_sid": twilio_message.sid,
                 "status": twilio_message.status,
                 "to_number": to_number,
+                "from_number": from_number,
                 "message": "SMS sent successfully"
             }
             
         except TwilioRestException as e:
-            logger.error(f"❌ Twilio SMS Error: {e.code} - {e.msg}")
+            logger.error(f"\n{'='*80}")
+            logger.error(f"❌ TWILIO SMS ERROR")
+            logger.error(f"{'='*80}")
+            logger.error(f"   Error Code: {e.code}")
+            logger.error(f"   Error Message: {e.msg}")
+            logger.error(f"   From Number: '{from_number}'")
+            logger.error(f"   To Number: '{to_number}'")
+            logger.error(f"{'='*80}\n")
             
-            # Save failed attempt
+            # Save failed attempt to both collections
             db = await self.get_db()
-            await db.sms_messages.insert_one({
+            failed_sms_data = {
                 "user_id": user_id,
                 "to_number": to_number,
-                "from_number": from_number or self.default_from,
+                "from_number": from_number,
                 "message": message,
                 "status": "failed",
                 "direction": "outbound",
@@ -150,7 +248,25 @@ class SMSService:
                 "error_message": str(e.msg),
                 "metadata": metadata or {},
                 "created_at": datetime.utcnow()
-            })
+            }
+            
+            # Store in sms_messages
+            await db.sms_messages.insert_one(failed_sms_data.copy())
+            
+            # ✅ Store in sms_logs
+            failed_sms_log = failed_sms_data.copy()
+            if call_id:
+                failed_sms_log["call_id"] = call_id
+            if customer_name:
+                failed_sms_log["customer_name"] = customer_name
+            if customer_email:
+                failed_sms_log["customer_email"] = customer_email
+            
+            failed_sms_log["is_reply"] = False
+            failed_sms_log["has_replies"] = False
+            failed_sms_log["reply_count"] = 0
+            
+            await db.sms_logs.insert_one(failed_sms_log)
             
             return {
                 "success": False,
@@ -160,6 +276,8 @@ class SMSService:
             
         except Exception as e:
             logger.error(f"❌ Error sending SMS: {str(e)}")
+            import traceback
+            traceback.print_exc()
             
             return {
                 "success": False,
@@ -292,7 +410,11 @@ class SMSService:
         }
     
     async def handle_incoming_sms(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Handle incoming SMS webhook from Twilio"""
+        """
+        Handle incoming SMS webhook from Twilio
+        
+        ✅ UPDATED: Now creates entries in both collections
+        """
         db = await self.get_db()
         
         sms_data = {
@@ -306,7 +428,16 @@ class SMSService:
             "created_at": datetime.utcnow()
         }
         
-        await db.sms_messages.insert_one(sms_data)
+        # Store in sms_messages
+        await db.sms_messages.insert_one(sms_data.copy())
+        
+        # ✅ Store in sms_logs
+        sms_log_data = sms_data.copy()
+        sms_log_data["is_reply"] = False
+        sms_log_data["has_replies"] = False
+        sms_log_data["reply_count"] = 0
+        
+        await db.sms_logs.insert_one(sms_log_data)
         
         return {
             "success": True,

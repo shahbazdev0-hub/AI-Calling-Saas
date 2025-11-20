@@ -1,4 +1,5 @@
-﻿// calls/Recordings.jsx
+﻿// frontend/src/pages/dashboard/calls/Recordings.jsx - ✅ COMPLETE FIXED VERSION
+
 import React, { useState, useEffect } from "react";
 import { Play, Download, Trash2, Search, Filter } from "lucide-react";
 import { format } from "date-fns";
@@ -22,8 +23,9 @@ const Recordings = () => {
   useEffect(() => {
     if (searchTerm) {
       const filtered = recordings.filter(rec =>
-        rec.call.from_number.includes(searchTerm) ||
-        rec.call.to_number.includes(searchTerm)
+        rec.call.from_number?.includes(searchTerm) ||
+        rec.call.to_number?.includes(searchTerm) ||
+        rec.call.phone_number?.includes(searchTerm)
       );
       setFilteredRecordings(filtered);
     } else {
@@ -34,22 +36,59 @@ const Recordings = () => {
   const loadRecordings = async () => {
     setIsLoading(true);
     try {
+      console.log('📞 Loading completed calls...');
       const calls = await callService.getCalls({ status: 'completed' });
+      console.log(`✅ Found ${calls.length} completed calls`);
       
+      // ✅ Fetch recordings with proper error handling
       const recordingsPromises = calls.map(async (call) => {
         try {
-          const recs = await callService.getCallRecording(call._id);
-          return recs.recordings?.map(rec => ({ ...rec, call })) || [];
+          console.log(`🎙️ Fetching recording for call ${call._id}...`);
+          const response = await callService.getCallRecording(call._id);
+          
+          // ✅ Check if response has recordings
+          if (response.success && response.recordings && response.recordings.length > 0) {
+            console.log(`✅ Found ${response.recordings.length} recording(s) for call ${call._id}`);
+            return response.recordings.map(rec => ({ ...rec, call }));
+          } else {
+            console.log(`ℹ️ No recording available for call ${call._id}`);
+            return [];
+          }
         } catch (error) {
+          // ✅ Gracefully handle 404 errors (no recording available)
+          if (error.response?.status === 404) {
+            console.log(`ℹ️ No recording available for call ${call._id} (404)`);
+          } else {
+            console.error(`❌ Error fetching recording for call ${call._id}:`, error.message);
+          }
           return [];
         }
       });
 
       const allRecordings = (await Promise.all(recordingsPromises)).flat();
+      
+      console.log(`\n${'='.repeat(80)}`);
+      console.log(`📊 RECORDINGS SUMMARY:`);
+      console.log(`${'='.repeat(80)}`);
+      console.log(`   Total Calls: ${calls.length}`);
+      console.log(`   Recordings Found: ${allRecordings.length}`);
+      console.log(`   Calls Without Recordings: ${calls.length - allRecordings.length}`);
+      console.log(`${'='.repeat(80)}\n`);
+      
       setRecordings(allRecordings);
       setFilteredRecordings(allRecordings);
+      
+      // ✅ FIXED: Show appropriate message using toast() instead of toast.info()
+      if (allRecordings.length === 0) {
+        toast('No recordings available yet. Make a new call to create recordings.', {
+          icon: 'ℹ️',
+          duration: 4000,
+        });
+      } else {
+        toast.success(`Loaded ${allRecordings.length} recording${allRecordings.length !== 1 ? 's' : ''}`);
+      }
     } catch (error) {
-      console.error('Failed to load recordings:', error);
+      console.error('❌ Failed to load recordings:', error);
       toast.error('Failed to load recordings');
     } finally {
       setIsLoading(false);
@@ -111,6 +150,9 @@ const Recordings = () => {
             Listen to and manage your call recordings
           </p>
         </div>
+        <Button onClick={loadRecordings} variant="outline">
+          Refresh
+        </Button>
       </div>
 
       {/* Search */}
@@ -137,7 +179,12 @@ const Recordings = () => {
         {filteredRecordings.length === 0 ? (
           <Card className="p-8 text-center text-gray-500">
             <Play size={48} className="mx-auto text-gray-400 mb-4" />
-            <p>No recordings found</p>
+            <p className="font-medium mb-2">No recordings found</p>
+            <p className="text-sm">
+              {recordings.length === 0 
+                ? "Recordings will appear here after calls are completed. Make a new call to create recordings."
+                : "Try adjusting your search to find recordings."}
+            </p>
           </Card>
         ) : (
           filteredRecordings.map((recording) => (

@@ -1,8 +1,9 @@
-﻿
-// // frontend/src/services/api.js pervious milestone2
+﻿// // frontend/src/services/api.js 
 // import axios from "axios"
 // import config from "./config"
 // import { formatDateForAPI } from "../utils/dateUtils"
+// import { automationAPI, smsAPI, emailAPI } from './automation';
+// import workflowAPI from './workflow';
 
 // // Create axios instance with base configuration
 // const api = axios.create({
@@ -259,13 +260,58 @@
 //   }
 // }
 
+// export const automation = {
+//   getAll: (params) => automationAPI.getAutomations(params),
+//   getOne: (id) => automationAPI.getAutomation(id),
+//   create: (data) => automationAPI.createAutomation(data),
+//   update: (id, data) => automationAPI.updateAutomation(id, data),
+//   delete: (id) => automationAPI.deleteAutomation(id),
+//   trigger: (id, data) => automationAPI.triggerAutomation(id, data),
+//   test: (id, data) => automationAPI.testAutomation(id, data),
+//   stats: () => automationAPI.getAutomationStats(),
+//   toggle: (id, isActive) => automationAPI.toggleAutomation(id, isActive),
+//   getLogs: (id, params) => automationAPI.getAutomationLogs(id, params)
+// };
+
+// export const sms = {
+//   send: (data) => smsAPI.sendSMS(data),
+//   sendBulk: (data) => smsAPI.sendBulkSMS(data),
+//   getAll: (params) => smsAPI.getSMSMessages(params),
+//   getOne: (id) => smsAPI.getSMS(id),
+//   stats: () => smsAPI.getSMSStats(),
+//   delete: (id) => smsAPI.deleteSMS(id)
+// };
+
+// export const email = {
+//   createCampaign: (data) => emailAPI.createCampaign(data),
+//   getCampaigns: (params) => emailAPI.getCampaigns(params),
+//   getCampaign: (id) => emailAPI.getCampaign(id),
+//   updateCampaign: (id, data) => emailAPI.updateCampaign(id, data),
+//   deleteCampaign: (id) => emailAPI.deleteCampaign(id),
+//   sendCampaign: (id) => emailAPI.sendCampaign(id),
+//   sendEmail: (data) => emailAPI.sendEmail(data),
+//   createTemplate: (data) => emailAPI.createTemplate(data),
+//   getTemplates: (params) => emailAPI.getTemplates(params)
+// };
+
+// export const workflow = {
+//   getAll: (params) => workflowAPI.getWorkflows(params),
+//   getOne: (id) => workflowAPI.getWorkflow(id),
+//   create: (data) => workflowAPI.createWorkflow(data),
+//   update: (id, data) => workflowAPI.updateWorkflow(id, data),
+//   delete: (id) => workflowAPI.deleteWorkflow(id),
+//   execute: (id, data) => workflowAPI.executeWorkflow(id, data),
+//   getExecutions: (id, params) => workflowAPI.getWorkflowExecutions(id, params)
+// };
+
+// // Export automation APIs for direct import
+// export { automationAPI, smsAPI, emailAPI, workflowAPI };
 // export default api
 
 
 
 
-
-// frontend/src/services/api.js pervious milestone3
+// frontend/src/services/api.js 
 import axios from "axios"
 import config from "./config"
 import { formatDateForAPI } from "../utils/dateUtils"
@@ -446,6 +492,54 @@ export const conversationAPI = {
   deleteConversation: (id) => api.delete(`/conversations/${id}`),
 }
 
+// ✅ Customer API calls (Milestone 4 - CRM) - REMOVED "export" keyword
+const customerAPI = {
+  // Get all customers with pagination and filters
+  getAll: (params = {}) => api.get('/customers', { params }),
+  
+  // Get single customer by ID
+  getById: (customerId) => api.get(`/customers/${customerId}`),
+  
+  // Create new customer
+  create: (customerData) => api.post('/customers', customerData),
+  
+  // Update customer
+  update: (customerId, customerData) => api.put(`/customers/${customerId}`, customerData),
+  
+  // Delete customer
+  delete: (customerId) => api.delete(`/customers/${customerId}`),
+  
+  // Get customer's appointments
+  getAppointments: (customerId) => api.get(`/customers/${customerId}/appointments`),
+  
+  // Get customer's call history
+  getCallHistory: (customerId) => api.get(`/customers/${customerId}/calls`),
+  
+  // Get customer's interaction timeline
+  getTimeline: (customerId) => api.get(`/customers/${customerId}/timeline`),
+  
+  // Add note to customer
+  addNote: (customerId, note) => api.post(`/customers/${customerId}/notes`, { note }),
+  
+  // Add tags to customer
+  addTags: (customerId, tags) => api.post(`/customers/${customerId}/tags`, { tags }),
+  
+  // Remove tag from customer
+  removeTag: (customerId, tag) => api.delete(`/customers/${customerId}/tags/${tag}`),
+  
+  // Get customer statistics
+  getStats: () => api.get('/customers/stats'),
+  
+  // Export customers to CSV
+  exportCSV: (params = {}) => api.get('/customers/export/csv', {
+    params,
+    responseType: 'blob'
+  }),
+  
+  // Search customers
+  search: (query) => api.get(`/customers/search?q=${encodeURIComponent(query)}`),
+}
+
 // Analytics API (Future milestones)
 export const analyticsAPI = {
   getCallAnalytics: (params = {}) => {
@@ -571,10 +665,24 @@ export const workflow = {
   getExecutions: (id, params) => workflowAPI.getWorkflowExecutions(id, params)
 };
 
-// Export automation APIs for direct import
-export { automationAPI, smsAPI, emailAPI, workflowAPI };
+// ✅ Customer API shorthand (Milestone 4 - CRM)
+export const customer = {
+  getAll: (params) => customerAPI.getAll(params),
+  getOne: (id) => customerAPI.getById(id),
+  create: (data) => customerAPI.create(data),
+  update: (id, data) => customerAPI.update(id, data),
+  delete: (id) => customerAPI.delete(id),
+  getAppointments: (id) => customerAPI.getAppointments(id),
+  getCallHistory: (id) => customerAPI.getCallHistory(id),
+  getTimeline: (id) => customerAPI.getTimeline(id),
+  addNote: (id, note) => customerAPI.addNote(id, note),
+  addTags: (id, tags) => customerAPI.addTags(id, tags),
+  removeTag: (id, tag) => customerAPI.removeTag(id, tag),
+  getStats: () => customerAPI.getStats(),
+  exportCSV: (params) => customerAPI.exportCSV(params),
+  search: (query) => customerAPI.search(query)
+};
+
+// ✅ FIXED: Export customerAPI only ONCE at the end
+export { automationAPI, smsAPI, emailAPI, workflowAPI, customerAPI };
 export default api
-
-
-
-

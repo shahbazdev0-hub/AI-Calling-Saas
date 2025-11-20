@@ -1,10 +1,12 @@
-﻿// // pages/dashboard/Dashboard.jsx - UPDATED WITH REAL API DATA (Using Existing Backend Endpoints) milestone 2
+﻿// // pages/dashboard/Dashboard.jsx - UPDATED WITH COMMUNICATION SECTION (SMS & Email Logs)
+
 // import { useState, useEffect } from "react"
 // import { Outlet, Link, useLocation, useNavigate } from "react-router-dom"
 // import { 
 //   Menu, X, BarChart3, User, Settings, Shield, Users, LogOut, Bell, Search,
 //   Phone, TrendingUp, DollarSign, Clock, CheckCircle, XCircle, Activity,
-//   PhoneCall, History, FileText, Bot, PieChart, Mic, RefreshCw
+//   PhoneCall, History, FileText, Bot, PieChart, Mic, RefreshCw,
+//   MessageSquare, Mail  // ✅ NEW ICONS FOR SMS & EMAIL
 // } from "lucide-react"
 // import { useAuth } from "../../contexts/AuthContext"
 // import toast from "react-hot-toast"
@@ -61,8 +63,6 @@
 //       setLoading(true)
 //       const headers = getAuthHeaders()
 
-//       // ✅ Using existing backend endpoint: GET /api/v1/calls/ (not /calls/history)
-//       // This endpoint returns all calls with filters
 //       const callsResponse = await fetch(`${API_BASE_URL}/calls/?skip=0&limit=100`, {
 //         method: 'GET',
 //         headers: headers
@@ -78,33 +78,24 @@
 //         const now = new Date()
 //         const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
         
-//         // Calls today - filter by created_at date
 //         const callsToday = calls.filter(call => {
 //           const callDate = new Date(call.created_at)
 //           return callDate >= startOfToday
 //         }).length
 
-//         // Total calls
 //         const totalCalls = calls.length
 
-//         // Success rate (completed calls / total calls)
 //         const completedCalls = calls.filter(call => call.status === 'completed').length
 //         const successRate = totalCalls > 0 ? ((completedCalls / totalCalls) * 100).toFixed(1) : 0
 
-//         // Average call duration (in seconds)
 //         const totalDuration = calls.reduce((sum, call) => sum + (call.duration || 0), 0)
 //         const avgDurationSec = totalCalls > 0 ? Math.floor(totalDuration / totalCalls) : 0
 //         const avgMinutes = Math.floor(avgDurationSec / 60)
 //         const avgSeconds = avgDurationSec % 60
 //         const avgCallDuration = `${avgMinutes}m ${avgSeconds}s`
 
-//         // Revenue calculation (example: $2.5 per call today)
 //         const revenue = callsToday * 2.5
-
-//         // Active agents (you can fetch this from voice_agents endpoint if needed)
-//         const activeAgents = 5 // Placeholder - replace with real data if you have an agents endpoint
-
-//         // Conversion rate (example calculation based on success rate)
+//         const activeAgents = 5
 //         const conversionRate = (parseFloat(successRate) * 0.25).toFixed(1)
 
 //         setDashboardStats({
@@ -117,7 +108,6 @@
 //           conversionRate: parseFloat(conversionRate)
 //         })
 
-//         // Get recent calls (last 10, sorted by created_at)
 //         const recent = calls
 //           .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
 //           .slice(0, 10)
@@ -132,12 +122,9 @@
 //           }))
 
 //         setRecentCalls(recent)
-//         console.log(`✅ Dashboard stats calculated:`, dashboardStats)
 
 //       } else {
 //         console.error('❌ Failed to fetch calls:', callsResponse.status)
-//         const errorText = await callsResponse.text()
-//         console.error('Error details:', errorText)
 //         toast.error('Failed to load dashboard data')
 //       }
 //     } catch (error) {
@@ -155,9 +142,7 @@
 //     toast.success('Dashboard data refreshed')
 //   }
 
-//   // Helper function to determine call type
 //   const determineCallType = (call) => {
-//     // You can customize this logic based on your data
 //     if (call.outcome) {
 //       return call.outcome
 //     }
@@ -226,6 +211,29 @@
 //     { name: 'Voice Agents', href: '/dashboard/calls/agents', icon: Bot },
 //     { name: 'Analytics', href: '/dashboard/calls/analytics', icon: PieChart },
 //     { name: 'Recordings', href: '/dashboard/calls/recordings', icon: Mic },
+//   ]
+
+//   // ✅ NEW - COMMUNICATION SECTION (Replaces Automation section)
+//   const communicationNavigation = [
+//     { 
+//       name: 'SMS Logs', 
+//       href: '/dashboard/sms-logs', 
+//       icon: MessageSquare
+//     },
+//     { 
+//       name: 'Email Logs', 
+//       href: '/dashboard/email-logs', 
+//       icon: Mail
+//     },
+//     { 
+//       name: 'AI Campaign Builder', 
+//       href: '/dashboard/campaigns', 
+//       icon: (props) => (
+//         <svg {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+//           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+//         </svg>
+//       )
+//     }
 //   ]
 
 //   const navigation = isAdmin ? adminNavigation : userNavigation
@@ -316,6 +324,45 @@
 //               </div>
 
 //               {callNavigation.map((item) => {
+//                 const Icon = item.icon
+//                 return (
+//                   <Link 
+//                     key={item.name} 
+//                     to={item.href} 
+//                     className={`group flex items-center px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium rounded-lg relative overflow-hidden
+//                       transition-all duration-300 ease-in-out
+//                       ${isActive(item.href)
+//                         ? 'bg-gradient-to-r from-primary/15 to-primary/5 text-primary-700 border-r-2 border-primary-600 shadow-sm'
+//                         : 'text-gray-700 hover:text-primary hover:shadow-sm hover:scale-[1.02]'
+//                       }
+//                       active:scale-[0.97]
+//                     `}
+//                     onClick={() => setSidebarOpen(false)}
+//                   >
+//                     <span
+//                       className={`absolute inset-0 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300`}
+//                     ></span>
+
+//                     <span
+//                       className={`absolute left-0 top-0 h-full w-[3px] bg-primary scale-y-0 group-hover:scale-y-100 origin-top transition-transform duration-300
+//                         ${isActive(item.href) ? 'scale-y-100' : ''}
+//                       `}
+//                     ></span>
+
+//                     <Icon className="h-4 w-4 sm:h-5 sm:w-5 mr-2 sm:mr-3 flex-shrink-0 z-10 transition-transform duration-300 group-hover:translate-x-1" />
+//                     <span className="truncate z-10">{item.name}</span>
+//                   </Link>
+//                 )
+//               })}
+
+//               {/* ✅ NEW - COMMUNICATION SECTION */}
+//               <div className="pt-4 pb-2 px-3">
+//                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+//                   Communication
+//                 </p>
+//               </div>
+
+//               {communicationNavigation.map((item) => {
 //                 const Icon = item.icon
 //                 return (
 //                   <Link 
@@ -448,167 +495,164 @@
 
 //                       <div className="bg-white p-3 sm:p-4 lg:p-6 rounded-lg shadow-sm border">
 //                         <div className="flex flex-col sm:flex-row sm:items-center">
-//                           <div className="p-1.5 sm:p-2 bg-green-100 rounded-lg mb-2 sm:mb-0 w-fit">
-//                             <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-green-600" />
-//                           </div>
-//                           <div className="sm:ml-3 lg:ml-4">
-//                             <p className="text-xs sm:text-sm font-medium text-gray-600">Success Rate</p>
-//                             <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">{dashboardStats.successRate}%</p>
-//                           </div>
-//                         </div>
+// <div className="p-1.5 sm:p-2 bg-green-100 rounded-lg mb-2 sm:mb-0 w-fit">
+// <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-green-600" />
+// </div>
+// <div className="sm:ml-3 lg:ml-4">
+// <p className="text-xs sm:text-sm font-medium text-gray-600">Success Rate</p>
+// <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">{dashboardStats.successRate}%</p>
+// </div>
+// </div>
+// </div>
+//                   <div className="bg-white p-3 sm:p-4 lg:p-6 rounded-lg shadow-sm border">
+//                     <div className="flex flex-col sm:flex-row sm:items-center">
+//                       <div className="p-1.5 sm:p-2 bg-purple-100 rounded-lg mb-2 sm:mb-0 w-fit">
+//                         <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-purple-600" />
 //                       </div>
-
-//                       <div className="bg-white p-3 sm:p-4 lg:p-6 rounded-lg shadow-sm border">
-//                         <div className="flex flex-col sm:flex-row sm:items-center">
-//                           <div className="p-1.5 sm:p-2 bg-purple-100 rounded-lg mb-2 sm:mb-0 w-fit">
-//                             <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-purple-600" />
-//                           </div>
-//                           <div className="sm:ml-3 lg:ml-4">
-//                             <p className="text-xs sm:text-sm font-medium text-gray-600">Revenue Today</p>
-//                             <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">${dashboardStats.revenue.toLocaleString()}</p>
-//                           </div>
-//                         </div>
-//                       </div>
-
-//                       <div className="bg-white p-3 sm:p-4 lg:p-6 rounded-lg shadow-sm border">
-//                         <div className="flex flex-col sm:flex-row sm:items-center">
-//                           <div className="p-1.5 sm:p-2 bg-yellow-100 rounded-lg mb-2 sm:mb-0 w-fit">
-//                             <Clock className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-yellow-600" />
-//                           </div>
-//                           <div className="sm:ml-3 lg:ml-4">
-//                             <p className="text-xs sm:text-sm font-medium text-gray-600">Avg Duration</p>
-//                             <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">{dashboardStats.avgCallDuration}</p>
-//                           </div>
-//                         </div>
+//                       <div className="sm:ml-3 lg:ml-4">
+//                         <p className="text-xs sm:text-sm font-medium text-gray-600">Revenue Today</p>
+//                         <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">${dashboardStats.revenue.toLocaleString()}</p>
 //                       </div>
 //                     </div>
+//                   </div>
 
-//                     <div className="bg-white rounded-lg shadow-sm border hidden md:block">
-//                       <div className="p-4 sm:p-6 border-b border-gray-200 flex items-center justify-between">
-//                         <h3 className="text-base sm:text-lg font-semibold text-gray-900">Recent Calls</h3>
-//                         <span className="text-xs sm:text-sm text-gray-500">
-//                           Total: {dashboardStats.totalCalls} calls
-//                         </span>
+//                   <div className="bg-white p-3 sm:p-4 lg:p-6 rounded-lg shadow-sm border">
+//                     <div className="flex flex-col sm:flex-row sm:items-center">
+//                       <div className="p-1.5 sm:p-2 bg-yellow-100 rounded-lg mb-2 sm:mb-0 w-fit">
+//                         <Clock className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-yellow-600" />
 //                       </div>
-//                       <div className="overflow-x-auto">
-//                         {recentCalls.length === 0 ? (
-//                           <div className="p-12 text-center">
-//                             <Phone className="h-12 w-12 mx-auto text-gray-300 mb-3" />
-//                             <p className="text-gray-500">No calls yet. Start making calls to see them here.</p>
-//                           </div>
-//                         ) : (
-//                           <table className="w-full">
-//                             <thead className="bg-gray-50">
-//                               <tr>
-//                                 <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
-//                                 <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
-//                                 <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
-//                                 <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-//                                 <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-//                               </tr>
-//                             </thead>
-//                             <tbody className="divide-y divide-gray-200">
-//                               {recentCalls.map((call) => (
-//                                 <tr key={call.id} className="hover:bg-gray-50">
-//                                   <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-gray-900">{call.customer}</td>
-//                                   <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">{call.time}</td>
-//                                   <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">{call.duration}</td>
-//                                   <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500 capitalize">{call.type}</td>
-//                                   <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
-//                                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-//                                       call.status === 'completed' ? 'bg-green-100 text-green-800' : 
-//                                       call.status === 'failed' ? 'bg-red-100 text-red-800' : 
-//                                       'bg-yellow-100 text-yellow-800'
-//                                     }`}>
-//                                       {call.status}
-//                                     </span>
-//                                   </td>
-//                                 </tr>
-//                               ))}
-//                             </tbody>
-//                           </table>
-//                         )}
+//                       <div className="sm:ml-3 lg:ml-4">
+//                         <p className="text-xs sm:text-sm font-medium text-gray-600">Avg Duration</p>
+//                         <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">{dashboardStats.avgCallDuration}</p>
 //                       </div>
 //                     </div>
+//                   </div>
+//                 </div>
 
-//                     <div className="md:hidden space-y-3">
-//                       <div className="bg-white rounded-lg shadow-sm border p-4">
-//                         <div className="flex items-center justify-between mb-3">
-//                           <h3 className="text-base font-semibold text-gray-900">Recent Calls</h3>
-//                           <span className="text-xs text-gray-500">
-//                             Total: {dashboardStats.totalCalls}
-//                           </span>
-//                         </div>
-//                         {recentCalls.length === 0 ? (
-//                           <div className="py-8 text-center">
-//                             <Phone className="h-12 w-12 mx-auto text-gray-300 mb-2" />
-//                             <p className="text-sm text-gray-500">No calls yet</p>
-//                           </div>
-//                         ) : (
-//                           <div className="space-y-3">
-//                             {recentCalls.map((call) => (
-//                               <div key={call.id} className="border border-gray-200 rounded-lg p-3">
-//                                 <div className="flex items-start justify-between mb-2">
-//                                   <div className="flex-1 min-w-0">
-//                                     <p className="text-sm font-medium text-gray-900 truncate">{call.customer}</p>
-//                                     <p className="text-xs text-gray-500 mt-0.5 capitalize">{call.type}</p>
-//                                   </div>
-//                                   <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full flex-shrink-0 ml-2 ${
-//                                     call.status === 'completed' ? 'bg-green-100 text-green-800' : 
-//                                     call.status === 'failed' ? 'bg-red-100 text-red-800' : 
-//                                     'bg-yellow-100 text-yellow-800'
-//                                   }`}>
-//                                     {call.status}
-//                                   </span>
-//                                 </div>
-//                                 <div className="flex items-center justify-between text-xs text-gray-500">
-//                                   <span className="flex items-center">
-//                                     <Clock className="h-3 w-3 mr-1" />
-//                                     {call.time}
-//                                   </span>
-//                                   <span>{call.duration}</span>
-//                                 </div>
+//                 <div className="bg-white rounded-lg shadow-sm border hidden md:block">
+//                   <div className="p-4 sm:p-6 border-b border-gray-200 flex items-center justify-between">
+//                     <h3 className="text-base sm:text-lg font-semibold text-gray-900">Recent Calls</h3>
+//                     <span className="text-xs sm:text-sm text-gray-500">
+//                       Total: {dashboardStats.totalCalls} calls
+//                     </span>
+//                   </div>
+//                   <div className="overflow-x-auto">
+//                     {recentCalls.length === 0 ? (
+//                       <div className="p-12 text-center">
+//                         <Phone className="h-12 w-12 mx-auto text-gray-300 mb-3" />
+//                         <p className="text-gray-500">No calls yet. Start making calls to see them here.</p>
+//                       </div>
+//                     ) : (
+//                       <table className="w-full">
+//                         <thead className="bg-gray-50">
+//                           <tr>
+//                             <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+//                             <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
+//                             <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
+//                             <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+//                             <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+//                           </tr>
+//                         </thead>
+//                         <tbody className="divide-y divide-gray-200">
+//                           {recentCalls.map((call) => (
+//                             <tr key={call.id} className="hover:bg-gray-50">
+//                               <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-gray-900">{call.customer}</td>
+//                               <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">{call.time}</td>
+//                               <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">{call.duration}</td>
+//                               <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500 capitalize">{call.type}</td>
+//                               <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
+//                                 <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+//                                   call.status === 'completed' ? 'bg-green-100 text-green-800' : 
+//                                   call.status === 'failed' ? 'bg-red-100 text-red-800' : 
+//                                   'bg-yellow-100 text-yellow-800'
+//                                 }`}>
+//                                   {call.status}
+//                                 </span>
+//                               </td>
+//                             </tr>
+//                           ))}
+//                         </tbody>
+//                       </table>
+//                     )}
+//                   </div>
+//                 </div>
+
+//                 <div className="md:hidden space-y-3">
+//                   <div className="bg-white rounded-lg shadow-sm border p-4">
+//                     <div className="flex items-center justify-between mb-3">
+//                       <h3 className="text-base font-semibold text-gray-900">Recent Calls</h3>
+//                       <span className="text-xs text-gray-500">
+//                         Total: {dashboardStats.totalCalls}
+//                       </span>
+//                     </div>
+//                     {recentCalls.length === 0 ? (
+//                       <div className="py-8 text-center">
+//                         <Phone className="h-12 w-12 mx-auto text-gray-300 mb-2" />
+//                         <p className="text-sm text-gray-500">No calls yet</p>
+//                       </div>
+//                     ) : (
+//                       <div className="space-y-3">
+//                         {recentCalls.map((call) => (
+//                           <div key={call.id} className="border border-gray-200 rounded-lg p-3">
+//                             <div className="flex items-start justify-between mb-2">
+//                               <div className="flex-1 min-w-0">
+//                                 <p className="text-sm font-medium text-gray-900 truncate">{call.customer}</p>
+//                                 <p className="text-xs text-gray-500 mt-0.5 capitalize">{call.type}</p>
 //                               </div>
-//                             ))}
+//                               <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full flex-shrink-0 ml-2 ${
+//                                 call.status === 'completed' ? 'bg-green-100 text-green-800' : 
+//                                 call.status === 'failed' ? 'bg-red-100 text-red-800' : 
+//                                 'bg-yellow-100 text-yellow-800'
+//                               }`}>
+//                                 {call.status}
+//                               </span>
+//                             </div>
+//                             <div className="flex items-center justify-between text-xs text-gray-500">
+//                               <span className="flex items-center">
+//                                 <Clock className="h-3 w-3 mr-1" />
+//                                 {call.time}
+//                               </span>
+//                               <span>{call.duration}</span>
+//                             </div>
 //                           </div>
-//                         )}
+//                         ))}
 //                       </div>
-//                     </div>
-//                   </>
-//                 )}
-//               </div>
-//             ) : showOverview && isAdmin ? (
-//               <div className="text-center py-8 sm:py-12 px-4">
-//                 <Shield className="h-12 w-12 sm:h-16 sm:w-16 text-primary-600 mx-auto mb-3 sm:mb-4" />
-//                 <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Admin Dashboard</h2>
-//                 <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6 max-w-md mx-auto">Welcome to the admin panel. Manage users, subscriptions, and system performance.</p>
-//                 <Link to="/dashboard/admin" className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 text-sm sm:text-base">
-//                   Go to Admin Panel
-//                 </Link>
-//               </div>
-//             ) : (
-//               <Outlet />
+//                     )}
+//                   </div>
+//                 </div>
+//               </>
 //             )}
 //           </div>
-//         </main>
+//         ) : showOverview && isAdmin ? (
+//           <div className="text-center py-8 sm:py-12 px-4">
+//             <Shield className="h-12 w-12 sm:h-16 sm:w-16 text-primary-600 mx-auto mb-3 sm:mb-4" />
+//             <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Admin Dashboard</h2>
+//             <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6 max-w-md mx-auto">Welcome to the admin panel. Manage users, subscriptions, and system performance.</p>
+//             <Link to="/dashboard/admin" className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 text-sm sm:text-base">
+//               Go to Admin Panel
+//             </Link>
+//           </div>
+//         ) : (
+//           <Outlet />
+//         )}
 //       </div>
-//     </div>
-//   )
+//     </main>
+//   </div>
+// </div>
+// )
 // }
-
 // export default Dashboard
 
 
+// pages/dashboard/Dashboard.jsx - UPDATED WITH CRM SECTION
 
-
-
-// pages/dashboard/Dashboard.jsx - UPDATED WITH REAL API DATA + AUTOMATION SECTION (Milestone 3)
 import { useState, useEffect } from "react"
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom"
 import { 
   Menu, X, BarChart3, User, Settings, Shield, Users, LogOut, Bell, Search,
   Phone, TrendingUp, DollarSign, Clock, CheckCircle, XCircle, Activity,
-  PhoneCall, History, FileText, Bot, PieChart, Mic, RefreshCw
+  PhoneCall, History, FileText, Bot, PieChart, Mic, RefreshCw,
+  MessageSquare, Mail, UserPlus, Calendar, Briefcase  // ✅ ADDED ICONS FOR CRM
 } from "lucide-react"
 import { useAuth } from "../../contexts/AuthContext"
 import toast from "react-hot-toast"
@@ -665,8 +709,6 @@ const Dashboard = () => {
       setLoading(true)
       const headers = getAuthHeaders()
 
-      // ✅ Using existing backend endpoint: GET /api/v1/calls/ (not /calls/history)
-      // This endpoint returns all calls with filters
       const callsResponse = await fetch(`${API_BASE_URL}/calls/?skip=0&limit=100`, {
         method: 'GET',
         headers: headers
@@ -682,33 +724,24 @@ const Dashboard = () => {
         const now = new Date()
         const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
         
-        // Calls today - filter by created_at date
         const callsToday = calls.filter(call => {
           const callDate = new Date(call.created_at)
           return callDate >= startOfToday
         }).length
 
-        // Total calls
         const totalCalls = calls.length
 
-        // Success rate (completed calls / total calls)
         const completedCalls = calls.filter(call => call.status === 'completed').length
         const successRate = totalCalls > 0 ? ((completedCalls / totalCalls) * 100).toFixed(1) : 0
 
-        // Average call duration (in seconds)
         const totalDuration = calls.reduce((sum, call) => sum + (call.duration || 0), 0)
         const avgDurationSec = totalCalls > 0 ? Math.floor(totalDuration / totalCalls) : 0
         const avgMinutes = Math.floor(avgDurationSec / 60)
         const avgSeconds = avgDurationSec % 60
         const avgCallDuration = `${avgMinutes}m ${avgSeconds}s`
 
-        // Revenue calculation (example: $2.5 per call today)
         const revenue = callsToday * 2.5
-
-        // Active agents (you can fetch this from voice_agents endpoint if needed)
-        const activeAgents = 5 // Placeholder - replace with real data if you have an agents endpoint
-
-        // Conversion rate (example calculation based on success rate)
+        const activeAgents = 5
         const conversionRate = (parseFloat(successRate) * 0.25).toFixed(1)
 
         setDashboardStats({
@@ -721,7 +754,6 @@ const Dashboard = () => {
           conversionRate: parseFloat(conversionRate)
         })
 
-        // Get recent calls (last 10, sorted by created_at)
         const recent = calls
           .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
           .slice(0, 10)
@@ -736,12 +768,9 @@ const Dashboard = () => {
           }))
 
         setRecentCalls(recent)
-        console.log(`✅ Dashboard stats calculated:`, dashboardStats)
 
       } else {
         console.error('❌ Failed to fetch calls:', callsResponse.status)
-        const errorText = await callsResponse.text()
-        console.error('Error details:', errorText)
         toast.error('Failed to load dashboard data')
       }
     } catch (error) {
@@ -759,9 +788,7 @@ const Dashboard = () => {
     toast.success('Dashboard data refreshed')
   }
 
-  // Helper function to determine call type
   const determineCallType = (call) => {
-    // You can customize this logic based on your data
     if (call.outcome) {
       return call.outcome
     }
@@ -801,6 +828,11 @@ const Dashboard = () => {
       return location.pathname === '/dashboard/admin' || location.pathname === '/dashboard/admin/'
     }
     
+    // ✅ CRM routes matching
+    if (href === '/dashboard/crm' && location.pathname.startsWith('/dashboard/crm')) {
+      return true
+    }
+    
     return false
   }
 
@@ -832,25 +864,23 @@ const Dashboard = () => {
     { name: 'Recordings', href: '/dashboard/calls/recordings', icon: Mic },
   ]
 
-  // ✅ MILESTONE 3 - AUTOMATION SECTION
-  const automationNavigation = [
+  // ✅ NEW - CRM NAVIGATION
+  const crmNavigation = [
+    { name: 'CRM Dashboard', href: '/dashboard/crm', icon: Briefcase },
+    { name: 'Customers', href: '/dashboard/crm/customers', icon: UserPlus },
+    
+  ]
+
+  const communicationNavigation = [
     { 
-      name: 'Automations', 
-      href: '/dashboard/automations', 
-      icon: (props) => (
-        <svg {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-        </svg>
-      )
+      name: 'SMS Logs', 
+      href: '/dashboard/sms-logs', 
+      icon: MessageSquare
     },
     { 
-      name: 'Workflows', 
-      href: '/dashboard/workflows', 
-      icon: (props) => (
-        <svg {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-        </svg>
-      )
+      name: 'Email Logs', 
+      href: '/dashboard/email-logs', 
+      icon: Mail
     },
     { 
       name: 'AI Campaign Builder', 
@@ -858,15 +888,6 @@ const Dashboard = () => {
       icon: (props) => (
         <svg {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-        </svg>
-      )
-    },
-    { 
-      name: 'SMS Messages', 
-      href: '/dashboard/sms', 
-      icon: (props) => (
-        <svg {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
         </svg>
       )
     }
@@ -953,6 +974,7 @@ const Dashboard = () => {
 
           {!isAdmin && (
             <>
+              {/* CALL CENTER SECTION */}
               <div className="pt-4 pb-2 px-3">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
                   Call Center
@@ -991,14 +1013,53 @@ const Dashboard = () => {
                 )
               })}
 
-              {/* ✅ MILESTONE 3 - AUTOMATION SECTION */}
+              {/* ✅ NEW - CRM SECTION */}
               <div className="pt-4 pb-2 px-3">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                  Automation
+                  Customer Management
                 </p>
               </div>
 
-              {automationNavigation.map((item) => {
+              {crmNavigation.map((item) => {
+                const Icon = item.icon
+                return (
+                  <Link 
+                    key={item.name} 
+                    to={item.href} 
+                    className={`group flex items-center px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium rounded-lg relative overflow-hidden
+                      transition-all duration-300 ease-in-out
+                      ${isActive(item.href)
+                        ? 'bg-gradient-to-r from-primary/15 to-primary/5 text-primary-700 border-r-2 border-primary-600 shadow-sm'
+                        : 'text-gray-700 hover:text-primary hover:shadow-sm hover:scale-[1.02]'
+                      }
+                      active:scale-[0.97]
+                    `}
+                    onClick={() => setSidebarOpen(false)}
+                  >
+                    <span
+                      className={`absolute inset-0 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300`}
+                    ></span>
+
+                    <span
+                      className={`absolute left-0 top-0 h-full w-[3px] bg-primary scale-y-0 group-hover:scale-y-100 origin-top transition-transform duration-300
+                        ${isActive(item.href) ? 'scale-y-100' : ''}
+                      `}
+                    ></span>
+
+                    <Icon className="h-4 w-4 sm:h-5 sm:w-5 mr-2 sm:mr-3 flex-shrink-0 z-10 transition-transform duration-300 group-hover:translate-x-1" />
+                    <span className="truncate z-10">{item.name}</span>
+                  </Link>
+                )
+              })}
+
+              {/* COMMUNICATION SECTION */}
+              <div className="pt-4 pb-2 px-3">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  Communication
+                </p>
+              </div>
+
+              {communicationNavigation.map((item) => {
                 const Icon = item.icon
                 return (
                   <Link 

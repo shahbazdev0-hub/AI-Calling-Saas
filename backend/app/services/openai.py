@@ -1,17 +1,19 @@
-
-# # services/openai.py
+# # services/openai.py without sms chatbot 
 # import os
-# import openai
+# from openai import AsyncOpenAI
 # from typing import List, Dict, Optional
 # import json
+# import logging
+
+# logger = logging.getLogger(__name__)
 
 
 # class OpenAIService:
 #     def __init__(self):
 #         self.api_key = os.getenv("OPENAI_API_KEY")
-#         self.model = os.getenv("OPENAI_MODEL", "gpt-4")
+#         self.model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 #         self.max_tokens = int(os.getenv("OPENAI_MAX_TOKENS", "500"))
-#         openai.api_key = self.api_key
+#         self.client = AsyncOpenAI(api_key=self.api_key)
 
 #     async def generate_response(
 #         self,
@@ -32,7 +34,7 @@
             
 #             conversation_messages.extend(messages)
             
-#             response = await openai.ChatCompletion.acreate(
+#             response = await self.client.chat.completions.create(
 #                 model=self.model,
 #                 messages=conversation_messages,
 #                 temperature=temperature,
@@ -49,6 +51,7 @@
 #                 }
 #             }
 #         except Exception as e:
+#             logger.error(f"OpenAI generate_response error: {e}")
 #             return {
 #                 "success": False,
 #                 "error": str(e)
@@ -66,7 +69,7 @@
 
 # Respond in JSON format."""
 
-#             response = await openai.ChatCompletion.acreate(
+#             response = await self.client.chat.completions.create(
 #                 model=self.model,
 #                 messages=[
 #                     {
@@ -88,9 +91,11 @@
 #                 "sentiment": result
 #             }
 #         except Exception as e:
+#             logger.error(f"Sentiment analysis error: {e}")
 #             return {
 #                 "success": False,
-#                 "error": str(e)
+#                 "error": str(e),
+#                 "sentiment": {"sentiment": "neutral", "confidence": 0.5, "emotions": []}
 #             }
 
 #     async def generate_summary(self, transcript: str) -> Dict:
@@ -103,7 +108,7 @@
 
 # Transcript: {transcript}"""
 
-#             response = await openai.ChatCompletion.acreate(
+#             response = await self.client.chat.completions.create(
 #                 model=self.model,
 #                 messages=[
 #                     {
@@ -124,6 +129,7 @@
 #                 "summary": response.choices[0].message.content
 #             }
 #         except Exception as e:
+#             logger.error(f"Summary generation error: {e}")
 #             return {
 #                 "success": False,
 #                 "error": str(e)
@@ -137,7 +143,7 @@
 
 # Text: {text}"""
 
-#             response = await openai.ChatCompletion.acreate(
+#             response = await self.client.chat.completions.create(
 #                 model=self.model,
 #                 messages=[
 #                     {
@@ -159,6 +165,7 @@
 #                 "keywords": keywords
 #             }
 #         except Exception as e:
+#             logger.error(f"Keyword extraction error: {e}")
 #             return {
 #                 "success": False,
 #                 "error": str(e)
@@ -167,6 +174,12 @@
 #     async def determine_call_outcome(self, transcript: str) -> Dict:
 #         """Determine the outcome of a call"""
 #         try:
+#             if not transcript or len(transcript.strip()) < 10:
+#                 return {
+#                     "success": True,
+#                     "outcome": "no_answer"
+#                 }
+            
 #             prompt = f"""Based on this call transcript, determine the outcome:
 # - successful: Call achieved its objective
 # - needs_followup: Requires additional action
@@ -177,7 +190,7 @@
 
 # Respond with just one word: successful, needs_followup, no_answer, or unsuccessful"""
 
-#             response = await openai.ChatCompletion.acreate(
+#             response = await self.client.chat.completions.create(
 #                 model=self.model,
 #                 messages=[
 #                     {
@@ -198,15 +211,15 @@
 #                 "outcome": response.choices[0].message.content.strip().lower()
 #             }
 #         except Exception as e:
+#             logger.error(f"Outcome determination error: {e}")
 #             return {
-#                 "success": False,
-#                 "error": str(e)
+#                 "success": True,
+#                 "outcome": "unknown"
 #             }
 
 
 # # Create singleton instance
 # openai_service = OpenAIService()
-
 
 
 # services/openai.py
@@ -225,6 +238,10 @@ class OpenAIService:
         self.model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
         self.max_tokens = int(os.getenv("OPENAI_MAX_TOKENS", "500"))
         self.client = AsyncOpenAI(api_key=self.api_key)
+
+    def is_configured(self) -> bool:
+        """Check if OpenAI is properly configured"""
+        return bool(self.api_key)
 
     async def generate_response(
         self,
@@ -263,6 +280,72 @@ class OpenAIService:
             }
         except Exception as e:
             logger.error(f"OpenAI generate_response error: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def generate_chat_response(
+        self,
+        messages: List[Dict],
+        system_prompt: Optional[str] = None,
+        max_tokens: int = 500
+    ) -> Dict:
+        """
+        Generate a chat response using OpenAI GPT
+        
+        Args:
+            messages: List of message dicts with 'role' and 'content'
+            system_prompt: Optional system message
+            max_tokens: Maximum response tokens
+        
+        Returns:
+            Dict with success status and response
+        """
+        try:
+            if not self.is_configured():
+                return {
+                    "success": False,
+                    "error": "OpenAI not configured"
+                }
+            
+            # Prepare messages
+            chat_messages = []
+            
+            # Add system message if provided
+            if system_prompt:
+                chat_messages.append({
+                    "role": "system",
+                    "content": system_prompt
+                })
+            
+            # Add conversation messages
+            chat_messages.extend(messages)
+            
+            # Generate response
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=chat_messages,
+                temperature=0.7,
+                max_tokens=max_tokens
+            )
+            
+            ai_response = response.choices[0].message.content.strip()
+            
+            logger.info(f"Generated chat response: {len(ai_response)} characters")
+            
+            return {
+                "success": True,
+                "response": ai_response,
+                "usage": {
+                    "prompt_tokens": response.usage.prompt_tokens,
+                    "completion_tokens": response.usage.completion_tokens,
+                    "total_tokens": response.usage.total_tokens
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Chat response generation error: {e}", exc_info=True)
             return {
                 "success": False,
                 "error": str(e)

@@ -1,4 +1,4 @@
-# # backend/app/api/v1/voice.py - COMPLETE FIXED VERSION
+# # backend/app/api/v1/voice.py - ✅ COMPLETE FIXED VERSION WITH RECORDING SUPPORT
 
 # from fastapi import APIRouter, Depends, Request, HTTPException, status
 # from fastapi.responses import Response, PlainTextResponse, JSONResponse, FileResponse
@@ -9,6 +9,7 @@
 # from pydantic import BaseModel, Field
 # import logging
 # import os
+# import re
 # from pathlib import Path
 
 # from app.database import get_database
@@ -17,6 +18,7 @@
 # from app.services.elevenlabs import elevenlabs_service
 # from app.services.twilio import twilio_service
 # from app.services.call_handler import get_call_handler
+# from app.services.sms import sms_service
 
 # logger = logging.getLogger(__name__)
 # router = APIRouter()
@@ -54,64 +56,52 @@
 
 # class VoiceTestRequest(BaseModel):
 #     text: str
-#     voice_id: str
 
 
 # # ============================================
-# # HELPER FUNCTION: GENERATE AUDIO
+# # HELPER FUNCTION - GENERATE AUDIO RESPONSE
 # # ============================================
 
-# async def generate_audio_response(
-#     text: str,
-#     agent_config: Optional[dict],
-#     base_url: str
-# ) -> str:
-#     """Generate audio using ElevenLabs and return TwiML"""
+# async def generate_audio_response(text: str, agent: dict, base_url: str) -> str:
+#     """Generate audio response using ElevenLabs"""
 #     try:
-#         voice_id = agent_config.get("voice_id") if agent_config else None
-#         voice_settings = agent_config.get("voice_settings", {}) if agent_config else {}
-        
-#         # ✅ FIX: Extract voice settings with defaults
+#         voice_id = agent.get("voice_id") or os.getenv("ELEVENLABS_VOICE_ID")
+#         voice_settings = agent.get("voice_settings", {})
 #         stability = voice_settings.get("stability", 0.5)
 #         similarity_boost = voice_settings.get("similarity_boost", 0.75)
         
-#         logger.info(f"🎙️ Voice settings - Stability: {stability}, Similarity: {similarity_boost}")
+#         logger.info(f"🎙️ Generating audio with voice: {voice_id}")
+#         logger.info(f"📊 Voice settings - Stability: {stability}, Similarity: {similarity_boost}")
         
-#         if voice_id:
-#             logger.info(f"🎤 Generating ElevenLabs audio with voice: {voice_id}")
+#         audio_url = await elevenlabs_service.text_to_speech_for_call(
+#             text=text,
+#             voice_id=voice_id,
+#             stability=stability,
+#             similarity_boost=similarity_boost
+#         )
+        
+#         if audio_url:
+#             full_audio_url = f"{base_url}/api/v1/voice{audio_url}"
+#             logger.info(f"✅ Audio URL: {full_audio_url}")
+#             return f'<Play>{full_audio_url}</Play>'
+#         else:
+#             logger.warning("⚠️ Audio generation failed, using fallback")
+#             return f'<Say voice="alice">{text}</Say>'
             
-#             audio_url = await elevenlabs_service.text_to_speech_for_call(
-#                 text=text,
-#                 voice_id=voice_id,
-#                 stability=stability,  # ✅ Pass the actual values
-#                 similarity_boost=similarity_boost  # ✅ Pass the actual values
-#             )
-            
-#             if audio_url:
-#                 # Make sure URL is complete
-#                 if not audio_url.startswith("http"):
-#                     audio_url = f"{base_url}{audio_url}"
-#                 logger.info(f"✅ Audio generated: {audio_url}")
-#                 return f'<Play>{audio_url}</Play>'
-        
-#         # Fallback to Twilio voice
-#         logger.info("⚙️ Using Twilio voice")
-#         return f'<Say voice="alice">{text}</Say>'
-        
 #     except Exception as e:
 #         logger.error(f"❌ Error generating audio: {e}")
 #         return f'<Say voice="alice">{text}</Say>'
 
 
 # # ============================================
-# # AUDIO FILE SERVING ENDPOINT
+# # TWILIO FILE SERVING ENDPOINT
 # # ============================================
 
 # @router.get("/static/audio/{filename}")
 # async def serve_audio_file(filename: str):
 #     """Serve audio files for Twilio playback"""
 #     try:
-#         audio_dir = Path("static/audio")
+#         audio_dir = Path("backend/static/audio")
 #         file_path = audio_dir / filename
         
 #         if file_path.exists() and file_path.is_file():
@@ -123,6 +113,7 @@
 #                 }
 #             )
 #         else:
+#             logger.error(f"❌ Audio file not found: {file_path}")
 #             raise HTTPException(status_code=404, detail="Audio file not found")
             
 #     except Exception as e:
@@ -139,7 +130,7 @@
 #     request: Request,
 #     db: AsyncIOMotorDatabase = Depends(get_database)
 # ):
-#     """Handle incoming/outbound call initialization with workflow"""
+#     """Handle incoming/outbound call initialization"""
 #     try:
 #         if request.method == "GET":
 #             return PlainTextResponse("Webhook is active", status_code=200)
@@ -152,62 +143,90 @@
         
 #         logger.info(f"📞 Call webhook: {call_sid} from {from_number} ({direction})")
         
+#         # ✅ FIXED: Determine customer phone correctly
+#         twilio_number = os.getenv("TWILIO_PHONE_NUMBER", "")
+        
+#         if from_number == twilio_number:
+#             # Outbound call - customer is TO
+#             customer_phone = to_number
+#             call_direction = "outbound"
+#         else:
+#             # Inbound call - customer is FROM
+#             customer_phone = from_number
+#             call_direction = "inbound"
+        
+#         logger.info(f"📋 Direction: {call_direction}, Customer: {customer_phone}")
+        
 #         # Find or create call record
 #         call_record = await db.calls.find_one({"twilio_call_sid": call_sid})
         
 #         if not call_record:
-#             # Create new call record for inbound calls
 #             call_data = {
-#                 "twilio_call_sid": call_sid,
-#                 "direction": direction,
+#                 "direction": call_direction,
 #                 "from_number": from_number,
 #                 "to_number": to_number,
-#                 "status": "in-progress",
+#                 "phone_number": customer_phone,  # ✅ FIXED: Store customer phone
+#                 "status": "initiated",
+#                 "twilio_call_sid": call_sid,
+#                 "call_sid": call_sid,  # ✅ Also store in legacy field
 #                 "started_at": datetime.utcnow(),
-#                 "created_at": datetime.utcnow()
+#                 "created_at": datetime.utcnow(),
+#                 "updated_at": datetime.utcnow(),
+#                 # ✅ Initialize recording fields
+#                 "recording_url": None,
+#                 "recording_sid": None,
+#                 "recording_duration": 0
 #             }
+            
 #             result = await db.calls.insert_one(call_data)
-#             call_record = await db.calls.find_one({"_id": result.inserted_id})
-#             logger.info(f"✅ Created call record: {result.inserted_id}")
+#             call_id = result.inserted_id
+#             logger.info(f"✅ Created new call record: {call_id}")
+#         else:
+#             call_id = call_record["_id"]
+#             logger.info(f"✅ Found existing call record: {call_id}")
         
-#         # Get ANY active agent
+#         # Find agent
 #         agent = await db.voice_agents.find_one({"is_active": True})
-        
 #         if not agent:
-#             logger.error("❌ No active agent found")
-#             return Response(content="""<?xml version="1.0" encoding="UTF-8"?>
-# <Response>
-#     <Say voice="alice">Sorry, no agent is available.</Say>
-#     <Hangup/>
-# </Response>""", media_type="application/xml")
+#             raise HTTPException(status_code=404, detail="No active agent found")
         
-#         # Store agent in call record
-#         await db.calls.update_one(
-#             {"_id": call_record["_id"]},
-#             {"$set": {"agent_id": agent["_id"]}}
-#         )
+#         agent_id = agent["_id"]
         
-#         # Create conversation
-#         conversation_data = {
-#             "call_sid": call_sid,
-#             "agent_id": agent["_id"],
-#             "workflow_id": agent.get("workflow_id"),
-#             "messages": [],
-#             "context": {},
-#             "created_at": datetime.utcnow()
-#         }
-#         await db.conversations.insert_one(conversation_data)
+#         # Create or update conversation
+#         conversation = await db.conversations.find_one({"call_sid": call_sid})
         
-#         # Generate greeting
-#         greeting = agent.get("greeting_message", "Hello! How can I help you today?")
+#         if not conversation:
+#             conversation_data = {
+#                 "call_id": call_id,
+#                 "call_sid": call_sid,
+#                 "agent_id": agent_id,
+#                 "messages": [],
+#                 "metadata": {
+#                     "appointment_data": {},
+#                     "current_step": "greeting"
+#                 },
+#                 "started_at": datetime.utcnow(),
+#                 "created_at": datetime.utcnow(),
+#                 "updated_at": datetime.utcnow()
+#             }
+            
+#             result = await db.conversations.insert_one(conversation_data)
+#             logger.info(f"✅ Created conversation: {result.inserted_id}")
+        
+#         # Get greeting message
+#         greeting_message = await ai_agent_service.get_greeting_message(agent)
+#         if not greeting_message or greeting_message.strip() == "":
+#             greeting_message = "Hello! How can I help you today?"
+        
+#         logger.info(f"📢 Greeting message: {greeting_message}")
         
 #         # Get base URL
 #         base_url = str(request.base_url).rstrip('/')
         
-#         # Generate audio with agent's voice settings
-#         audio_tag = await generate_audio_response(greeting, agent, base_url)
+#         # Generate audio response
+#         audio_tag = await generate_audio_response(greeting_message, agent, base_url)
         
-#         # Build TwiML
+#         # Build TwiML response
 #         twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 # <Response>
 #     <Gather 
@@ -327,7 +346,7 @@
 
 
 # # ============================================
-# # CALL STATUS WEBHOOK
+# # CALL STATUS WEBHOOK - ✅ SIMPLIFIED (NO RECORDING HERE)
 # # ============================================
 
 # @router.post("/webhook/call-status")
@@ -335,23 +354,25 @@
 #     request: Request,
 #     db: AsyncIOMotorDatabase = Depends(get_database)
 # ):
-#     """Handle call status updates"""
+#     """✅ FIXED: Handle call status updates (recordings handled separately)"""
 #     try:
 #         form_data = await request.form()
 #         call_sid = form_data.get("CallSid")
 #         call_status = form_data.get("CallStatus")
-#         call_duration = form_data.get("CallDuration")
+#         duration = form_data.get("CallDuration")
         
-#         logger.info(f"📊 Call status: {call_sid} -> {call_status}")
+#         logger.info(f"📊 Call status update: {call_sid} - {call_status}")
         
-#         # Update call record
+#         # Build update data
 #         update_data = {
 #             "status": call_status,
 #             "updated_at": datetime.utcnow()
 #         }
         
-#         if call_status == "completed" and call_duration:
-#             update_data["duration"] = int(call_duration)
+#         if duration:
+#             update_data["duration"] = int(duration)
+        
+#         if call_status == "completed":
 #             update_data["ended_at"] = datetime.utcnow()
         
 #         await db.calls.update_one(
@@ -359,10 +380,163 @@
 #             {"$set": update_data}
 #         )
         
+#         logger.info(f"✅ Call {call_sid} status updated to {call_status}")
+        
+#         # ✅ SEND POST-CALL SMS WHEN CALL COMPLETES
+#         if call_status == "completed":
+#             logger.info(f"📱 Call completed - triggering post-call SMS")
+            
+#             try:
+#                 # Get call details
+#                 call = await db.calls.find_one({"twilio_call_sid": call_sid})
+                
+#                 if call:
+#                     # Get customer phone from phone_number field
+#                     customer_phone = call.get("phone_number")
+                    
+#                     # Get Twilio's number
+#                     twilio_number = os.getenv("TWILIO_PHONE_NUMBER", "")
+                    
+#                     logger.info(f"📋 Call direction: {call.get('direction')}")
+#                     logger.info(f"📞 Customer phone: {customer_phone}")
+#                     logger.info(f"📞 Twilio number: {twilio_number}")
+                    
+#                     # Only send SMS if valid customer phone
+#                     if customer_phone and customer_phone != twilio_number:
+#                         # Check if appointment was booked
+#                         conversation = await db.conversations.find_one({"call_sid": call_sid})
+#                         appointment_data = conversation.get("metadata", {}).get("appointment_data", {}) if conversation else {}
+                        
+#                         # Build SMS message
+#                         if appointment_data.get("email") and appointment_data.get("name"):
+#                             message = f"Thank you for calling, {appointment_data.get('name')}! Your appointment has been confirmed. We've sent a confirmation email to {appointment_data.get('email')}. Looking forward to seeing you!"
+#                         else:
+#                             message = "Thank you for calling! We appreciate your business. If you need any further assistance, please don't hesitate to contact us. Have a great day!"
+                        
+#                         # Send SMS
+#                         logger.info(f"📤 Sending post-call SMS to {customer_phone}")
+#                         sms_result = await sms_service.send_sms(
+#                             to_number=customer_phone,
+#                             message=message,
+#                             metadata={"call_sid": call_sid, "type": "post_call"}
+#                         )
+                        
+#                         if sms_result.get("success"):
+#                             logger.info(f"✅ POST-CALL SMS SENT SUCCESSFULLY!")
+#                             logger.info(f"   To: {customer_phone}")
+#                             logger.info(f"   SID: {sms_result.get('twilio_sid')}")
+#                         else:
+#                             logger.error(f"❌ Failed to send post-call SMS: {sms_result.get('error')}")
+#                     else:
+#                         logger.warning(f"⚠️ Skipping SMS: Invalid customer phone or Twilio number")
+#                         logger.warning(f"   Customer: {customer_phone}, Twilio: {twilio_number}")
+#                 else:
+#                     logger.warning("⚠️ Call record not found for SMS sending")
+                    
+#             except Exception as sms_error:
+#                 logger.error(f"❌ Error sending post-call SMS: {sms_error}")
+#                 import traceback
+#                 traceback.print_exc()
+        
+#         return Response(content='<?xml version="1.0" encoding="UTF-8"?><Response></Response>', media_type="application/xml")
+        
+#     except Exception as e:
+#         logger.error(f"❌ Error in call status webhook: {e}")
+#         import traceback
+#         traceback.print_exc()
+#         return Response(content='<?xml version="1.0" encoding="UTF-8"?><Response></Response>', media_type="application/xml")
+
+
+# # ============================================
+# # 🎙️ RECORDING STATUS WEBHOOK - ✅ THIS IS THE CRITICAL ONE
+# # ============================================
+
+# @router.post("/webhook/recording-status")
+# async def handle_recording_status(
+#     request: Request,
+#     db: AsyncIOMotorDatabase = Depends(get_database)
+# ):
+#     """
+#     ✅ CRITICAL: This webhook receives recording data from Twilio
+#     Twilio calls this AFTER the call completes and recording is ready
+#     """
+#     try:
+#         form_data = await request.form()
+        
+#         # ✅ Extract ALL recording fields from Twilio
+#         call_sid = form_data.get("CallSid")
+#         recording_url = form_data.get("RecordingUrl")
+#         recording_sid = form_data.get("RecordingSid")
+#         recording_duration = form_data.get("RecordingDuration")
+#         recording_status = form_data.get("RecordingStatus")
+        
+#         # ✅ Log EVERYTHING for debugging
+#         logger.info(f"\n{'='*80}")
+#         logger.info(f"🎙️ RECORDING WEBHOOK RECEIVED")
+#         logger.info(f"{'='*80}")
+#         logger.info(f"📞 Call SID: {call_sid}")
+#         logger.info(f"🎵 Recording URL: {recording_url}")
+#         logger.info(f"🆔 Recording SID: {recording_sid}")
+#         logger.info(f"⏱️  Duration: {recording_duration}s")
+#         logger.info(f"📊 Status: {recording_status}")
+#         logger.info(f"{'='*80}\n")
+        
+#         # ✅ Validate required fields
+#         if not call_sid:
+#             logger.error("❌ Missing CallSid in recording webhook")
+#             return Response(content="Missing CallSid", status_code=400)
+        
+#         if not recording_url:
+#             logger.error("❌ Missing RecordingUrl in recording webhook")
+#             return Response(content="Missing RecordingUrl", status_code=400)
+        
+#         # ✅ Only save if recording is completed
+#         if recording_status == "completed":
+#             # Build update data
+#             update_data = {
+#                 "recording_url": recording_url,
+#                 "recording_sid": recording_sid,
+#                 "updated_at": datetime.utcnow()
+#             }
+            
+#             # Add duration if present
+#             if recording_duration:
+#                 try:
+#                     update_data["recording_duration"] = int(recording_duration)
+#                 except (ValueError, TypeError):
+#                     logger.warning(f"⚠️ Invalid recording duration: {recording_duration}")
+#                     update_data["recording_duration"] = 0
+            
+#             # ✅ Update the database
+#             result = await db.calls.update_one(
+#                 {"twilio_call_sid": call_sid},
+#                 {"$set": update_data}
+#             )
+            
+#             if result.matched_count > 0:
+#                 logger.info(f"✅ RECORDING SAVED TO DATABASE")
+#                 logger.info(f"   Call SID: {call_sid}")
+#                 logger.info(f"   Recording URL: {recording_url}")
+#                 logger.info(f"   Modified: {result.modified_count} document(s)")
+#             else:
+#                 logger.warning(f"⚠️ NO CALL FOUND WITH SID: {call_sid}")
+#                 logger.warning(f"   Recording URL: {recording_url}")
+                
+#                 # ✅ Try to find the call by any field
+#                 call = await db.calls.find_one({"twilio_call_sid": call_sid})
+#                 if call:
+#                     logger.info(f"   Call exists: {call.get('_id')}")
+#                 else:
+#                     logger.error(f"   Call does not exist in database!")
+#         else:
+#             logger.info(f"ℹ️  Recording status is '{recording_status}', not saving yet")
+        
 #         return Response(content="OK", status_code=200)
         
 #     except Exception as e:
-#         logger.error(f"❌ Error updating call status: {e}")
+#         logger.error(f"❌ ERROR IN RECORDING WEBHOOK: {e}")
+#         import traceback
+#         traceback.print_exc()
 #         return Response(content="Error", status_code=500)
 
 
@@ -370,34 +544,7 @@
 # # VOICE AGENT CRUD ENDPOINTS
 # # ============================================
 
-# @router.get("/agents")
-# async def list_voice_agents(
-#     is_active: Optional[bool] = None,
-#     current_user: dict = Depends(get_current_user),
-#     db: AsyncIOMotorDatabase = Depends(get_database)
-# ):
-#     """List voice agents for current user"""
-#     try:
-#         query = {"user_id": str(current_user["_id"])}
-#         if is_active is not None:
-#             query["is_active"] = is_active
-        
-#         agents = await db.voice_agents.find(query).to_list(100)
-        
-#         # Convert ObjectId to string
-#         for agent in agents:
-#             agent["_id"] = str(agent["_id"])
-#             if agent.get("workflow_id"):
-#                 agent["workflow_id"] = str(agent["workflow_id"])
-        
-#         return agents
-        
-#     except Exception as e:
-#         logger.error(f"❌ Error listing agents: {e}")
-#         raise HTTPException(status_code=500, detail=str(e))
-
-
-# @router.post("/agents")
+# @router.post("/agents", status_code=status.HTTP_201_CREATED)
 # async def create_voice_agent(
 #     agent_data: VoiceAgentCreate,
 #     current_user: dict = Depends(get_current_user),
@@ -405,38 +552,60 @@
 # ):
 #     """Create a new voice agent"""
 #     try:
-#         agent_dict = agent_data.dict()
-#         agent_dict["user_id"] = str(current_user["_id"])
-#         agent_dict["created_at"] = datetime.utcnow()
-#         agent_dict["updated_at"] = datetime.utcnow()
+#         user_id = str(current_user["_id"])
         
-#         # Convert workflow_id to ObjectId if provided
-#         if agent_dict.get("workflow_id"):
-#             agent_dict["workflow_id"] = ObjectId(agent_dict["workflow_id"])
+#         agent_dict = {
+#             **agent_data.model_dump(),
+#             "user_id": user_id,
+#             "created_at": datetime.utcnow(),
+#             "updated_at": datetime.utcnow()
+#         }
         
-#         # ✅ FIX: Ensure default voice_settings if not provided
-#         if not agent_dict.get("voice_settings"):
-#             agent_dict["voice_settings"] = {
-#                 "stability": 0.5,
-#                 "similarity_boost": 0.75
-#             }
-        
-#         logger.info(f"📝 Creating agent with data: {agent_dict}")
+#         if agent_data.workflow_id:
+#             agent_dict["workflow_id"] = ObjectId(agent_data.workflow_id)
         
 #         result = await db.voice_agents.insert_one(agent_dict)
+#         agent_dict["_id"] = result.inserted_id
         
-#         created_agent = await db.voice_agents.find_one({"_id": result.inserted_id})
-#         created_agent["_id"] = str(created_agent["_id"])
+#         logger.info(f"Created voice agent: {result.inserted_id}")
         
-#         if created_agent.get("workflow_id"):
-#             created_agent["workflow_id"] = str(created_agent["workflow_id"])
-        
-#         logger.info(f"✅ Agent created successfully: {created_agent}")
-#         return created_agent
+#         return {
+#             "message": "Voice agent created successfully",
+#             "agent_id": str(result.inserted_id)
+#         }
         
 #     except Exception as e:
-#         logger.error(f"❌ Error creating agent: {e}")
-#         raise HTTPException(status_code=500, detail=str(e))
+#         logger.error(f"Error creating voice agent: {e}")
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail=str(e)
+#         )
+
+
+# @router.get("/agents")
+# async def get_voice_agents(
+#     current_user: dict = Depends(get_current_user),
+#     db: AsyncIOMotorDatabase = Depends(get_database)
+# ):
+#     """Get all voice agents for current user"""
+#     try:
+#         user_id = str(current_user["_id"])
+        
+#         agents = await db.voice_agents.find({"user_id": user_id}).to_list(100)
+        
+#         for agent in agents:
+#             agent["_id"] = str(agent["_id"])
+#             if agent.get("workflow_id"):
+#                 agent["workflow_id"] = str(agent["workflow_id"])
+        
+#         return {"agents": agents}
+        
+#     except Exception as e:
+#         logger.error(f"Error fetching voice agents: {e}")
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail=str(e)
+#         )
 
 
 # @router.get("/agents/{agent_id}")
@@ -445,15 +614,17 @@
 #     current_user: dict = Depends(get_current_user),
 #     db: AsyncIOMotorDatabase = Depends(get_database)
 # ):
-#     """Get a specific voice agent"""
+#     """Get specific voice agent"""
 #     try:
+#         user_id = str(current_user["_id"])
+        
 #         agent = await db.voice_agents.find_one({
 #             "_id": ObjectId(agent_id),
-#             "user_id": str(current_user["_id"])
+#             "user_id": user_id
 #         })
         
 #         if not agent:
-#             raise HTTPException(status_code=404, detail="Agent not found")
+#             raise HTTPException(status_code=404, detail="Voice agent not found")
         
 #         agent["_id"] = str(agent["_id"])
 #         if agent.get("workflow_id"):
@@ -464,8 +635,11 @@
 #     except HTTPException:
 #         raise
 #     except Exception as e:
-#         logger.error(f"❌ Error getting agent: {e}")
-#         raise HTTPException(status_code=500, detail=str(e))
+#         logger.error(f"Error fetching voice agent: {e}")
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail=str(e)
+#         )
 
 
 # @router.patch("/agents/{agent_id}")
@@ -475,55 +649,36 @@
 #     current_user: dict = Depends(get_current_user),
 #     db: AsyncIOMotorDatabase = Depends(get_database)
 # ):
-#     """Update a voice agent"""
+#     """Update voice agent"""
 #     try:
-#         # Check ownership
-#         agent = await db.voice_agents.find_one({
-#             "_id": ObjectId(agent_id),
-#             "user_id": str(current_user["_id"])
-#         })
+#         user_id = str(current_user["_id"])
         
-#         if not agent:
-#             raise HTTPException(status_code=404, detail="Agent not found")
+#         update_dict = {k: v for k, v in agent_data.model_dump(exclude_unset=True).items()}
+#         update_dict["updated_at"] = datetime.utcnow()
         
-#         # ✅ FIX: Prepare update data properly
-#         update_dict = {k: v for k, v in agent_data.dict(exclude_none=True).items()}
+#         if "workflow_id" in update_dict and update_dict["workflow_id"]:
+#             update_dict["workflow_id"] = ObjectId(update_dict["workflow_id"])
         
-#         if update_dict:
-#             update_dict["updated_at"] = datetime.utcnow()
-            
-#             # Convert workflow_id to ObjectId if provided
-#             if "workflow_id" in update_dict and update_dict["workflow_id"]:
-#                 update_dict["workflow_id"] = ObjectId(update_dict["workflow_id"])
-#             elif "workflow_id" in update_dict and not update_dict["workflow_id"]:
-#                 update_dict["workflow_id"] = None
-            
-#             # ✅ CRITICAL FIX: Log the voice_settings being saved
-#             if "voice_settings" in update_dict:
-#                 logger.info(f"📝 Saving voice_settings: {update_dict['voice_settings']}")
-            
-#             logger.info(f"📝 Updating agent {agent_id} with data: {update_dict}")
-            
-#             await db.voice_agents.update_one(
-#                 {"_id": ObjectId(agent_id)},
-#                 {"$set": update_dict}
-#             )
+#         result = await db.voice_agents.update_one(
+#             {"_id": ObjectId(agent_id), "user_id": user_id},
+#             {"$set": update_dict}
+#         )
         
-#         # Return updated agent
-#         updated_agent = await db.voice_agents.find_one({"_id": ObjectId(agent_id)})
-#         updated_agent["_id"] = str(updated_agent["_id"])
+#         if result.matched_count == 0:
+#             raise HTTPException(status_code=404, detail="Voice agent not found")
         
-#         if updated_agent.get("workflow_id"):
-#             updated_agent["workflow_id"] = str(updated_agent["workflow_id"])
+#         logger.info(f"Updated voice agent: {agent_id}")
         
-#         logger.info(f"✅ Agent updated successfully. Voice settings: {updated_agent.get('voice_settings')}")
-#         return updated_agent
+#         return {"message": "Voice agent updated successfully"}
         
 #     except HTTPException:
 #         raise
 #     except Exception as e:
-#         logger.error(f"❌ Error updating agent: {e}")
-#         raise HTTPException(status_code=500, detail=str(e))
+#         logger.error(f"Error updating voice agent: {e}")
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail=str(e)
+#         )
 
 
 # @router.delete("/agents/{agent_id}")
@@ -532,90 +687,144 @@
 #     current_user: dict = Depends(get_current_user),
 #     db: AsyncIOMotorDatabase = Depends(get_database)
 # ):
-#     """Delete a voice agent"""
+#     """Delete voice agent"""
 #     try:
+#         user_id = str(current_user["_id"])
+        
 #         result = await db.voice_agents.delete_one({
 #             "_id": ObjectId(agent_id),
-#             "user_id": str(current_user["_id"])
+#             "user_id": user_id
 #         })
         
 #         if result.deleted_count == 0:
-#             raise HTTPException(status_code=404, detail="Agent not found")
+#             raise HTTPException(status_code=404, detail="Voice agent not found")
         
-#         return {"message": "Agent deleted successfully"}
+#         logger.info(f"Deleted voice agent: {agent_id}")
+        
+#         return {"message": "Voice agent deleted successfully"}
         
 #     except HTTPException:
 #         raise
 #     except Exception as e:
-#         logger.error(f"❌ Error deleting agent: {e}")
-#         raise HTTPException(status_code=500, detail=str(e))
+#         logger.error(f"Error deleting voice agent: {e}")
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail=str(e)
+#         )
 
 
-# # ============================================
-# # VOICE TESTING ENDPOINTS
-# # ============================================
-
-# # ✅ FIX 1: Add the /available-voices endpoint that frontend expects
-# @router.get("/available-voices")
-# async def get_available_voices_for_frontend(
-#     current_user: dict = Depends(get_current_user)
+# @router.post("/agents/{agent_id}/test")
+# async def test_voice_agent(
+#     agent_id: str,
+#     test_request: VoiceTestRequest,
+#     current_user: dict = Depends(get_current_user),
+#     db: AsyncIOMotorDatabase = Depends(get_database)
 # ):
-#     """Get available ElevenLabs voices - Frontend endpoint"""
+#     """Test voice agent with text input"""
 #     try:
-#         result = await elevenlabs_service.get_available_voices()
-#         if result.get("success"):
-#             return {"voices": result.get("voices", [])}
+#         user_id = str(current_user["_id"])
+        
+#         agent = await db.voice_agents.find_one({
+#             "_id": ObjectId(agent_id),
+#             "user_id": user_id
+#         })
+        
+#         if not agent:
+#             raise HTTPException(status_code=404, detail="Voice agent not found")
+        
+#         # Generate audio response
+#         audio_result = await elevenlabs_service.generate_audio(
+#             text=test_request.text,
+#             voice_id=agent.get("voice_id")
+#         )
+        
+#         if audio_result.get("success"):
+#             return {
+#                 "success": True,
+#                 "audio_url": f"/static/audio/{audio_result['filename']}"
+#             }
 #         else:
-#             raise HTTPException(status_code=500, detail="Failed to fetch voices")
+#             raise HTTPException(
+#                 status_code=500,
+#                 detail="Failed to generate audio"
+#             )
+        
+#     except HTTPException:
+#         raise
 #     except Exception as e:
-#         logger.error(f"❌ Error fetching voices: {e}")
-#         raise HTTPException(status_code=500, detail=str(e))
+#         logger.error(f"Error testing voice agent: {e}")
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail=str(e)
+#         )
 
 
-# # Keep the existing /elevenlabs/voices endpoint too
-# @router.get("/elevenlabs/voices")
+# @router.get("/voices")
 # async def get_available_voices(
 #     current_user: dict = Depends(get_current_user)
 # ):
 #     """Get available ElevenLabs voices"""
 #     try:
-#         result = await elevenlabs_service.get_available_voices()
-#         if result.get("success"):
-#             return {"voices": result.get("voices", [])}
-#         else:
-#             raise HTTPException(status_code=500, detail="Failed to fetch voices")
+#         voices = await elevenlabs_service.get_voices()
+#         return voices
+        
 #     except Exception as e:
-#         logger.error(f"❌ Error fetching voices: {e}")
-#         raise HTTPException(status_code=500, detail=str(e))
+#         logger.error(f"Error fetching voices: {e}")
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail=str(e)
+#         )
+
+
+# @router.get("/available-voices")
+# async def get_available_voices_alt(
+#     current_user: dict = Depends(get_current_user)
+# ):
+#     """Alternative endpoint for available voices"""
+#     try:
+#         voices = await elevenlabs_service.get_voices()
+#         return voices
+        
+#     except Exception as e:
+#         logger.error(f"Error fetching voices: {e}")
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail=str(e)
+#         )
 
 
 # @router.post("/test-voice")
-# async def test_voice_endpoint(
-#     test_data: VoiceTestRequest,
+# async def test_voice(
+#     test_request: VoiceTestRequest,
 #     current_user: dict = Depends(get_current_user)
 # ):
 #     """Test a voice with sample text"""
 #     try:
-#         result = await elevenlabs_service.test_voice(
-#             text=test_data.text,
-#             voice_id=test_data.voice_id
+#         audio_result = await elevenlabs_service.text_to_speech(
+#             text=test_request.text,
+#             voice_id=test_request.voice_id if hasattr(test_request, 'voice_id') else None,
+#             save_to_file=True
 #         )
         
-#         if result.get("success"):
+#         if audio_result.get("success"):
 #             return {
 #                 "success": True,
-#                 "audio_url": result.get("audio_url"),
-#                 "message": "Voice test successful"
+#                 "audio_url": audio_result.get("audio_url")
 #             }
 #         else:
-#             raise HTTPException(status_code=500, detail="Failed to test voice")
+#             raise HTTPException(
+#                 status_code=500,
+#                 detail="Failed to generate audio"
+#             )
+        
 #     except Exception as e:
-#         logger.error(f"❌ Error testing voice: {e}")
-#         raise HTTPException(status_code=500, detail=str(e))
+#         logger.error(f"Error testing voice: {e}")
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail=str(e)
+#         )
 
-
-
-# backend/app/api/v1/voice.py - COMPLETE FILE WITH GREETING NULL CHECK FIX
+# backend/app/api/v1/voice.py - ✅ COMPLETE FIXED VERSION WITH RECORDING & SMS LOGGING
 
 from fastapi import APIRouter, Depends, Request, HTTPException, status
 from fastapi.responses import Response, PlainTextResponse, JSONResponse, FileResponse
@@ -626,6 +835,7 @@ from typing import Optional, List
 from pydantic import BaseModel, Field
 import logging
 import os
+import re
 from pathlib import Path
 
 from app.database import get_database
@@ -634,6 +844,7 @@ from app.services.ai_agent import ai_agent_service
 from app.services.elevenlabs import elevenlabs_service
 from app.services.twilio import twilio_service
 from app.services.call_handler import get_call_handler
+from app.services.sms import sms_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -671,64 +882,52 @@ class VoiceAgentUpdate(BaseModel):
 
 class VoiceTestRequest(BaseModel):
     text: str
-    voice_id: str
 
 
 # ============================================
-# HELPER FUNCTION: GENERATE AUDIO
+# HELPER FUNCTION - GENERATE AUDIO RESPONSE
 # ============================================
 
-async def generate_audio_response(
-    text: str,
-    agent_config: Optional[dict],
-    base_url: str
-) -> str:
-    """Generate audio using ElevenLabs and return TwiML"""
+async def generate_audio_response(text: str, agent: dict, base_url: str) -> str:
+    """Generate audio response using ElevenLabs"""
     try:
-        voice_id = agent_config.get("voice_id") if agent_config else None
-        voice_settings = agent_config.get("voice_settings", {}) if agent_config else {}
-        
-        # ✅ FIX: Extract voice settings with defaults
+        voice_id = agent.get("voice_id") or os.getenv("ELEVENLABS_VOICE_ID")
+        voice_settings = agent.get("voice_settings", {})
         stability = voice_settings.get("stability", 0.5)
         similarity_boost = voice_settings.get("similarity_boost", 0.75)
         
-        logger.info(f"🎙️ Voice settings - Stability: {stability}, Similarity: {similarity_boost}")
+        logger.info(f"🎙️ Generating audio with voice: {voice_id}")
+        logger.info(f"📊 Voice settings - Stability: {stability}, Similarity: {similarity_boost}")
         
-        if voice_id:
-            logger.info(f"🎤 Generating ElevenLabs audio with voice: {voice_id}")
+        audio_url = await elevenlabs_service.text_to_speech_for_call(
+            text=text,
+            voice_id=voice_id,
+            stability=stability,
+            similarity_boost=similarity_boost
+        )
+        
+        if audio_url:
+            full_audio_url = f"{base_url}/api/v1/voice{audio_url}"
+            logger.info(f"✅ Audio URL: {full_audio_url}")
+            return f'<Play>{full_audio_url}</Play>'
+        else:
+            logger.warning("⚠️ Audio generation failed, using fallback")
+            return f'<Say voice="alice">{text}</Say>'
             
-            audio_url = await elevenlabs_service.text_to_speech_for_call(
-                text=text,
-                voice_id=voice_id,
-                stability=stability,
-                similarity_boost=similarity_boost
-            )
-            
-            if audio_url:
-                # Make sure URL is complete
-                if not audio_url.startswith("http"):
-                    audio_url = f"{base_url}{audio_url}"
-                logger.info(f"✅ Audio generated: {audio_url}")
-                return f'<Play>{audio_url}</Play>'
-        
-        # Fallback to Twilio voice
-        logger.info("⚙️ Using Twilio voice")
-        return f'<Say voice="alice">{text}</Say>'
-        
     except Exception as e:
         logger.error(f"❌ Error generating audio: {e}")
         return f'<Say voice="alice">{text}</Say>'
 
 
 # ============================================
-# AUDIO FILE SERVING ENDPOINT
+# TWILIO FILE SERVING ENDPOINT
 # ============================================
 
 @router.get("/static/audio/{filename}")
 async def serve_audio_file(filename: str):
     """Serve audio files for Twilio playback"""
     try:
-        audio_dir = Path("static/audio")
+        audio_dir = Path("backend/static/audio")
         file_path = audio_dir / filename
         
         if file_path.exists() and file_path.is_file():
@@ -740,6 +939,7 @@ async def serve_audio_file(filename: str):
                 }
             )
         else:
+            logger.error(f"❌ Audio file not found: {file_path}")
             raise HTTPException(status_code=404, detail="Audio file not found")
             
     except Exception as e:
@@ -756,7 +956,7 @@ async def handle_incoming_call(
     request: Request,
     db: AsyncIOMotorDatabase = Depends(get_database)
 ):
-    """Handle incoming/outbound call initialization with workflow"""
+    """Handle incoming/outbound call initialization"""
     try:
         if request.method == "GET":
             return PlainTextResponse("Webhook is active", status_code=200)
@@ -769,55 +969,78 @@ async def handle_incoming_call(
         
         logger.info(f"📞 Call webhook: {call_sid} from {from_number} ({direction})")
         
+        # ✅ FIXED: Determine customer phone correctly
+        twilio_number = os.getenv("TWILIO_PHONE_NUMBER", "")
+        
+        if from_number == twilio_number:
+            # Outbound call - customer is TO
+            customer_phone = to_number
+            call_direction = "outbound"
+        else:
+            # Inbound call - customer is FROM
+            customer_phone = from_number
+            call_direction = "inbound"
+        
+        logger.info(f"📋 Direction: {call_direction}, Customer: {customer_phone}")
+        
         # Find or create call record
         call_record = await db.calls.find_one({"twilio_call_sid": call_sid})
         
         if not call_record:
-            # Create new call record for inbound calls
             call_data = {
-                "twilio_call_sid": call_sid,
-                "direction": direction,
+                "direction": call_direction,
                 "from_number": from_number,
                 "to_number": to_number,
-                "status": "in-progress",
+                "phone_number": customer_phone,  # ✅ FIXED: Store customer phone
+                "status": "initiated",
+                "twilio_call_sid": call_sid,
+                "call_sid": call_sid,  # ✅ Also store in legacy field
                 "started_at": datetime.utcnow(),
-                "created_at": datetime.utcnow()
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow(),
+                # ✅ Initialize recording fields
+                "recording_url": None,
+                "recording_sid": None,
+                "recording_duration": 0
             }
+            
             result = await db.calls.insert_one(call_data)
-            call_record = await db.calls.find_one({"_id": result.inserted_id})
-            logger.info(f"✅ Created call record: {result.inserted_id}")
+            call_id = result.inserted_id
+            logger.info(f"✅ Created new call record: {call_id}")
+        else:
+            call_id = call_record["_id"]
+            logger.info(f"✅ Found existing call record: {call_id}")
         
-        # Get ANY active agent
+        # Find agent
         agent = await db.voice_agents.find_one({"is_active": True})
-        
         if not agent:
-            logger.error("❌ No active agent found")
-            return Response(content="""<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-    <Say voice="alice">Sorry, no agent is available.</Say>
-    <Hangup/>
-</Response>""", media_type="application/xml")
+            raise HTTPException(status_code=404, detail="No active agent found")
         
-        # Store agent in call record
-        await db.calls.update_one(
-            {"_id": call_record["_id"]},
-            {"$set": {"agent_id": agent["_id"]}}
-        )
+        agent_id = agent["_id"]
         
-        # Create conversation
-        conversation_data = {
-            "call_sid": call_sid,
-            "agent_id": agent["_id"],
-            "workflow_id": agent.get("workflow_id"),
-            "messages": [],
-            "context": {},
-            "created_at": datetime.utcnow()
-        }
-        await db.conversations.insert_one(conversation_data)
+        # Create or update conversation
+        conversation = await db.conversations.find_one({"call_sid": call_sid})
         
-        # ✅ FIX: Generate greeting with NULL CHECK
-        greeting_message = agent.get("greeting_message")
+        if not conversation:
+            conversation_data = {
+                "call_id": call_id,
+                "call_sid": call_sid,
+                "agent_id": agent_id,
+                "messages": [],
+                "metadata": {
+                    "appointment_data": {},
+                    "current_step": "greeting"
+                },
+                "started_at": datetime.utcnow(),
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow()
+            }
+            
+            result = await db.conversations.insert_one(conversation_data)
+            logger.info(f"✅ Created conversation: {result.inserted_id}")
         
+        # Get greeting message
+        greeting_message = await ai_agent_service.get_greeting_message(agent)
         if not greeting_message or greeting_message.strip() == "":
             greeting_message = "Hello! How can I help you today?"
         
@@ -826,10 +1049,10 @@ async def handle_incoming_call(
         # Get base URL
         base_url = str(request.base_url).rstrip('/')
         
-        # Generate audio with agent's voice settings
+        # Generate audio response
         audio_tag = await generate_audio_response(greeting_message, agent, base_url)
         
-        # Build TwiML
+        # Build TwiML response
         twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Gather 
@@ -949,7 +1172,7 @@ async def handle_gather(
 
 
 # ============================================
-# CALL STATUS WEBHOOK
+# CALL STATUS WEBHOOK - ✅ FIXED WITH SMS LOGGING
 # ============================================
 
 @router.post("/webhook/call-status")
@@ -957,23 +1180,25 @@ async def handle_call_status(
     request: Request,
     db: AsyncIOMotorDatabase = Depends(get_database)
 ):
-    """Handle call status updates"""
+    """✅ FIXED: Handle call status updates with proper SMS logging"""
     try:
         form_data = await request.form()
         call_sid = form_data.get("CallSid")
         call_status = form_data.get("CallStatus")
-        call_duration = form_data.get("CallDuration")
+        duration = form_data.get("CallDuration")
         
-        logger.info(f"📊 Call status: {call_sid} -> {call_status}")
+        logger.info(f"📊 Call status update: {call_sid} - {call_status}")
         
-        # Update call record
+        # Build update data
         update_data = {
             "status": call_status,
             "updated_at": datetime.utcnow()
         }
         
-        if call_status == "completed" and call_duration:
-            update_data["duration"] = int(call_duration)
+        if duration:
+            update_data["duration"] = int(duration)
+        
+        if call_status == "completed":
             update_data["ended_at"] = datetime.utcnow()
         
         await db.calls.update_one(
@@ -981,10 +1206,154 @@ async def handle_call_status(
             {"$set": update_data}
         )
         
+        logger.info(f"✅ Call {call_sid} status updated to {call_status}")
+        
+        # ✅ SEND POST-CALL SMS WHEN CALL COMPLETES
+        if call_status == "completed":
+            logger.info(f"📱 Call completed - triggering post-call SMS")
+            
+            try:
+                # Get call details
+                call = await db.calls.find_one({"twilio_call_sid": call_sid})
+                
+                if call:
+                    # Get customer phone from phone_number field
+                    customer_phone = call.get("phone_number")
+                    user_id = call.get("user_id")  # ✅ Get user_id
+                    
+                    # Get Twilio's number
+                    twilio_number = os.getenv("TWILIO_PHONE_NUMBER", "")
+                    
+                    logger.info(f"📋 Call direction: {call.get('direction')}")
+                    logger.info(f"📞 Customer phone: {customer_phone}")
+                    logger.info(f"📞 Twilio number: {twilio_number}")
+                    
+                    # Only send SMS if valid customer phone
+                    if customer_phone and customer_phone != twilio_number:
+                        # Check if appointment was booked
+                        conversation = await db.conversations.find_one({"call_sid": call_sid})
+                        appointment_data = conversation.get("metadata", {}).get("appointment_data", {}) if conversation else {}
+                        
+                        # Get customer name and email from appointment data
+                        customer_name = appointment_data.get("name", "Customer")
+                        customer_email = appointment_data.get("email")
+                        
+                        # Build SMS message
+                        if customer_email and customer_name:
+                            message = f"Thank you for calling, {customer_name}! Your appointment has been confirmed. We've sent a confirmation email to {customer_email}. Looking forward to seeing you!"
+                        else:
+                            message = "Thank you for calling! We appreciate your business. If you need any further assistance, please don't hesitate to contact us. Have a great day!"
+                        
+                        # ✅ FIXED: Send SMS with proper context for logging
+                        logger.info(f"📤 Sending post-call SMS to {customer_phone}")
+                        sms_result = await sms_service.send_sms(
+                            to_number=customer_phone,
+                            message=message,
+                            user_id=user_id,  # ✅ Pass user_id
+                            call_id=str(call["_id"]),  # ✅ Pass call_id
+                            customer_name=customer_name,  # ✅ Pass customer_name
+                            customer_email=customer_email,  # ✅ Pass customer_email
+                            metadata={"call_sid": call_sid, "type": "post_call"}
+                        )
+                        
+                        if sms_result.get("success"):
+                            logger.info(f"✅ POST-CALL SMS SENT AND LOGGED SUCCESSFULLY!")
+                            logger.info(f"   To: {customer_phone}")
+                            logger.info(f"   SID: {sms_result.get('twilio_sid')}")
+                        else:
+                            logger.error(f"❌ Failed to send post-call SMS: {sms_result.get('error')}")
+                    else:
+                        logger.warning(f"⚠️ Skipping SMS: Invalid customer phone or Twilio number")
+                        logger.warning(f"   Customer: {customer_phone}, Twilio: {twilio_number}")
+                else:
+                    logger.warning("⚠️ Call record not found for SMS sending")
+                    
+            except Exception as sms_error:
+                logger.error(f"❌ Error sending post-call SMS: {sms_error}")
+                import traceback
+                traceback.print_exc()
+        
+        return Response(content='<?xml version="1.0" encoding="UTF-8"?><Response></Response>', media_type="application/xml")
+        
+    except Exception as e:
+        logger.error(f"❌ Error in call status webhook: {e}")
+        import traceback
+        traceback.print_exc()
+        return Response(content='<?xml version="1.0" encoding="UTF-8"?><Response></Response>', media_type="application/xml")
+
+
+# ============================================
+# 🎙️ RECORDING STATUS WEBHOOK
+# ============================================
+
+@router.post("/webhook/recording-status")
+async def handle_recording_status(
+    request: Request,
+    db: AsyncIOMotorDatabase = Depends(get_database)
+):
+    """✅ CRITICAL: This webhook receives recording data from Twilio"""
+    try:
+        form_data = await request.form()
+        
+        call_sid = form_data.get("CallSid")
+        recording_url = form_data.get("RecordingUrl")
+        recording_sid = form_data.get("RecordingSid")
+        recording_duration = form_data.get("RecordingDuration")
+        recording_status = form_data.get("RecordingStatus")
+        
+        logger.info(f"\n{'='*80}")
+        logger.info(f"🎙️ RECORDING WEBHOOK RECEIVED")
+        logger.info(f"{'='*80}")
+        logger.info(f"📞 Call SID: {call_sid}")
+        logger.info(f"🎵 Recording URL: {recording_url}")
+        logger.info(f"🆔 Recording SID: {recording_sid}")
+        logger.info(f"⏱️  Duration: {recording_duration}s")
+        logger.info(f"📊 Status: {recording_status}")
+        logger.info(f"{'='*80}\n")
+        
+        if not call_sid:
+            logger.error("❌ Missing CallSid in recording webhook")
+            return Response(content="Missing CallSid", status_code=400)
+        
+        if not recording_url:
+            logger.error("❌ Missing RecordingUrl in recording webhook")
+            return Response(content="Missing RecordingUrl", status_code=400)
+        
+        if recording_status == "completed":
+            update_data = {
+                "recording_url": recording_url,
+                "recording_sid": recording_sid,
+                "updated_at": datetime.utcnow()
+            }
+            
+            if recording_duration:
+                try:
+                    update_data["recording_duration"] = int(recording_duration)
+                except (ValueError, TypeError):
+                    logger.warning(f"⚠️ Invalid recording duration: {recording_duration}")
+                    update_data["recording_duration"] = 0
+            
+            result = await db.calls.update_one(
+                {"twilio_call_sid": call_sid},
+                {"$set": update_data}
+            )
+            
+            if result.matched_count > 0:
+                logger.info(f"✅ RECORDING SAVED TO DATABASE")
+                logger.info(f"   Call SID: {call_sid}")
+                logger.info(f"   Recording URL: {recording_url}")
+                logger.info(f"   Modified: {result.modified_count} document(s)")
+            else:
+                logger.warning(f"⚠️ NO CALL FOUND WITH SID: {call_sid}")
+        else:
+            logger.info(f"ℹ️  Recording status is '{recording_status}', not saving yet")
+        
         return Response(content="OK", status_code=200)
         
     except Exception as e:
-        logger.error(f"❌ Error updating call status: {e}")
+        logger.error(f"❌ ERROR IN RECORDING WEBHOOK: {e}")
+        import traceback
+        traceback.print_exc()
         return Response(content="Error", status_code=500)
 
 
@@ -992,34 +1361,7 @@ async def handle_call_status(
 # VOICE AGENT CRUD ENDPOINTS
 # ============================================
 
-@router.get("/agents")
-async def list_voice_agents(
-    is_active: Optional[bool] = None,
-    current_user: dict = Depends(get_current_user),
-    db: AsyncIOMotorDatabase = Depends(get_database)
-):
-    """List voice agents for current user"""
-    try:
-        query = {"user_id": str(current_user["_id"])}
-        if is_active is not None:
-            query["is_active"] = is_active
-        
-        agents = await db.voice_agents.find(query).to_list(100)
-        
-        # Convert ObjectId to string
-        for agent in agents:
-            agent["_id"] = str(agent["_id"])
-            if agent.get("workflow_id"):
-                agent["workflow_id"] = str(agent["workflow_id"])
-        
-        return agents
-        
-    except Exception as e:
-        logger.error(f"❌ Error listing agents: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/agents")
+@router.post("/agents", status_code=status.HTTP_201_CREATED)
 async def create_voice_agent(
     agent_data: VoiceAgentCreate,
     current_user: dict = Depends(get_current_user),
@@ -1027,42 +1369,60 @@ async def create_voice_agent(
 ):
     """Create a new voice agent"""
     try:
-        agent_dict = agent_data.dict()
-        agent_dict["user_id"] = str(current_user["_id"])
-        agent_dict["created_at"] = datetime.utcnow()
-        agent_dict["updated_at"] = datetime.utcnow()
+        user_id = str(current_user["_id"])
         
-        # Convert workflow_id to ObjectId if provided
-        if agent_dict.get("workflow_id"):
-            agent_dict["workflow_id"] = ObjectId(agent_dict["workflow_id"])
+        agent_dict = {
+            **agent_data.model_dump(),
+            "user_id": user_id,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        }
         
-        # ✅ FIX: Ensure default voice_settings if not provided
-        if not agent_dict.get("voice_settings"):
-            agent_dict["voice_settings"] = {
-                "stability": 0.5,
-                "similarity_boost": 0.75
-            }
-        
-        # ✅ FIX: Ensure default greeting_message if not provided
-        if not agent_dict.get("greeting_message"):
-            agent_dict["greeting_message"] = "Hello! How can I help you today?"
-        
-        logger.info(f"📝 Creating agent with data: {agent_dict}")
+        if agent_data.workflow_id:
+            agent_dict["workflow_id"] = ObjectId(agent_data.workflow_id)
         
         result = await db.voice_agents.insert_one(agent_dict)
+        agent_dict["_id"] = result.inserted_id
         
-        created_agent = await db.voice_agents.find_one({"_id": result.inserted_id})
-        created_agent["_id"] = str(created_agent["_id"])
+        logger.info(f"Created voice agent: {result.inserted_id}")
         
-        if created_agent.get("workflow_id"):
-            created_agent["workflow_id"] = str(created_agent["workflow_id"])
-        
-        logger.info(f"✅ Agent created successfully: {created_agent}")
-        return created_agent
+        return {
+            "message": "Voice agent created successfully",
+            "agent_id": str(result.inserted_id)
+        }
         
     except Exception as e:
-        logger.error(f"❌ Error creating agent: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error creating voice agent: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.get("/agents")
+async def get_voice_agents(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_database)
+):
+    """Get all voice agents for current user"""
+    try:
+        user_id = str(current_user["_id"])
+        
+        agents = await db.voice_agents.find({"user_id": user_id}).to_list(100)
+        
+        for agent in agents:
+            agent["_id"] = str(agent["_id"])
+            if agent.get("workflow_id"):
+                agent["workflow_id"] = str(agent["workflow_id"])
+        
+        return {"agents": agents}
+        
+    except Exception as e:
+        logger.error(f"Error fetching voice agents: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
 
 
 @router.get("/agents/{agent_id}")
@@ -1071,15 +1431,17 @@ async def get_voice_agent(
     current_user: dict = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_database)
 ):
-    """Get a specific voice agent"""
+    """Get specific voice agent"""
     try:
+        user_id = str(current_user["_id"])
+        
         agent = await db.voice_agents.find_one({
             "_id": ObjectId(agent_id),
-            "user_id": str(current_user["_id"])
+            "user_id": user_id
         })
         
         if not agent:
-            raise HTTPException(status_code=404, detail="Agent not found")
+            raise HTTPException(status_code=404, detail="Voice agent not found")
         
         agent["_id"] = str(agent["_id"])
         if agent.get("workflow_id"):
@@ -1090,8 +1452,11 @@ async def get_voice_agent(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error getting agent: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error fetching voice agent: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
 
 
 @router.patch("/agents/{agent_id}")
@@ -1101,55 +1466,36 @@ async def update_voice_agent(
     current_user: dict = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_database)
 ):
-    """Update a voice agent"""
+    """Update voice agent"""
     try:
-        # Check ownership
-        agent = await db.voice_agents.find_one({
-            "_id": ObjectId(agent_id),
-            "user_id": str(current_user["_id"])
-        })
+        user_id = str(current_user["_id"])
         
-        if not agent:
-            raise HTTPException(status_code=404, detail="Agent not found")
+        update_dict = {k: v for k, v in agent_data.model_dump(exclude_unset=True).items()}
+        update_dict["updated_at"] = datetime.utcnow()
         
-        # ✅ FIX: Prepare update data properly
-        update_dict = {k: v for k, v in agent_data.dict(exclude_none=True).items()}
+        if "workflow_id" in update_dict and update_dict["workflow_id"]:
+            update_dict["workflow_id"] = ObjectId(update_dict["workflow_id"])
         
-        if update_dict:
-            update_dict["updated_at"] = datetime.utcnow()
-            
-            # Convert workflow_id to ObjectId if provided
-            if "workflow_id" in update_dict and update_dict["workflow_id"]:
-                update_dict["workflow_id"] = ObjectId(update_dict["workflow_id"])
-            elif "workflow_id" in update_dict and not update_dict["workflow_id"]:
-                update_dict["workflow_id"] = None
-            
-            # ✅ CRITICAL FIX: Log the voice_settings being saved
-            if "voice_settings" in update_dict:
-                logger.info(f"📝 Saving voice_settings: {update_dict['voice_settings']}")
-            
-            logger.info(f"📝 Updating agent {agent_id} with data: {update_dict}")
-            
-            await db.voice_agents.update_one(
-                {"_id": ObjectId(agent_id)},
-                {"$set": update_dict}
-            )
+        result = await db.voice_agents.update_one(
+            {"_id": ObjectId(agent_id), "user_id": user_id},
+            {"$set": update_dict}
+        )
         
-        # Return updated agent
-        updated_agent = await db.voice_agents.find_one({"_id": ObjectId(agent_id)})
-        updated_agent["_id"] = str(updated_agent["_id"])
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Voice agent not found")
         
-        if updated_agent.get("workflow_id"):
-            updated_agent["workflow_id"] = str(updated_agent["workflow_id"])
+        logger.info(f"Updated voice agent: {agent_id}")
         
-        logger.info(f"✅ Agent updated successfully. Voice settings: {updated_agent.get('voice_settings')}")
-        return updated_agent
+        return {"message": "Voice agent updated successfully"}
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error updating agent: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error updating voice agent: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
 
 
 @router.delete("/agents/{agent_id}")
@@ -1158,83 +1504,139 @@ async def delete_voice_agent(
     current_user: dict = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_database)
 ):
-    """Delete a voice agent"""
+    """Delete voice agent"""
     try:
+        user_id = str(current_user["_id"])
+        
         result = await db.voice_agents.delete_one({
             "_id": ObjectId(agent_id),
-            "user_id": str(current_user["_id"])
+            "user_id": user_id
         })
         
         if result.deleted_count == 0:
-            raise HTTPException(status_code=404, detail="Agent not found")
+            raise HTTPException(status_code=404, detail="Voice agent not found")
         
-        return {"message": "Agent deleted successfully"}
+        logger.info(f"Deleted voice agent: {agent_id}")
+        
+        return {"message": "Voice agent deleted successfully"}
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error deleting agent: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error deleting voice agent: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
 
 
-# ============================================
-# VOICE TESTING ENDPOINTS
-# ============================================
-
-# ✅ FIX 1: Add the /available-voices endpoint that frontend expects
-@router.get("/available-voices")
-async def get_available_voices_for_frontend(
-    current_user: dict = Depends(get_current_user)
+@router.post("/agents/{agent_id}/test")
+async def test_voice_agent(
+    agent_id: str,
+    test_request: VoiceTestRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_database)
 ):
-    """Get available ElevenLabs voices - Frontend endpoint"""
+    """Test voice agent with text input"""
     try:
-        result = await elevenlabs_service.get_available_voices()
-        if result.get("success"):
-            return {"voices": result.get("voices", [])}
+        user_id = str(current_user["_id"])
+        
+        agent = await db.voice_agents.find_one({
+            "_id": ObjectId(agent_id),
+            "user_id": user_id
+        })
+        
+        if not agent:
+            raise HTTPException(status_code=404, detail="Voice agent not found")
+        
+        # Generate audio response
+        audio_result = await elevenlabs_service.generate_audio(
+            text=test_request.text,
+            voice_id=agent.get("voice_id")
+        )
+        
+        if audio_result.get("success"):
+            return {
+                "success": True,
+                "audio_url": f"/static/audio/{audio_result['filename']}"
+            }
         else:
-            raise HTTPException(status_code=500, detail="Failed to fetch voices")
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to generate audio"
+            )
+        
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"❌ Error fetching voices: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error testing voice agent: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
 
 
-# Keep the existing /elevenlabs/voices endpoint too
-@router.get("/elevenlabs/voices")
+@router.get("/voices")
 async def get_available_voices(
     current_user: dict = Depends(get_current_user)
 ):
     """Get available ElevenLabs voices"""
     try:
-        result = await elevenlabs_service.get_available_voices()
-        if result.get("success"):
-            return {"voices": result.get("voices", [])}
-        else:
-            raise HTTPException(status_code=500, detail="Failed to fetch voices")
+        voices = await elevenlabs_service.get_voices()
+        return voices
+        
     except Exception as e:
-        logger.error(f"❌ Error fetching voices: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error fetching voices: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.get("/available-voices")
+async def get_available_voices_alt(
+    current_user: dict = Depends(get_current_user)
+):
+    """Alternative endpoint for available voices"""
+    try:
+        voices = await elevenlabs_service.get_voices()
+        return voices
+        
+    except Exception as e:
+        logger.error(f"Error fetching voices: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
 
 
 @router.post("/test-voice")
-async def test_voice_endpoint(
-    test_data: VoiceTestRequest,
+async def test_voice(
+    test_request: VoiceTestRequest,
     current_user: dict = Depends(get_current_user)
 ):
     """Test a voice with sample text"""
     try:
-        result = await elevenlabs_service.test_voice(
-            text=test_data.text,
-            voice_id=test_data.voice_id
+        audio_result = await elevenlabs_service.text_to_speech(
+            text=test_request.text,
+            voice_id=test_request.voice_id if hasattr(test_request, 'voice_id') else None,
+            save_to_file=True
         )
         
-        if result.get("success"):
+        if audio_result.get("success"):
             return {
                 "success": True,
-                "audio_url": result.get("audio_url"),
-                "message": "Voice test successful"
+                "audio_url": audio_result.get("audio_url")
             }
         else:
-            raise HTTPException(status_code=500, detail="Failed to test voice")
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to generate audio"
+            )
+        
     except Exception as e:
-        logger.error(f"❌ Error testing voice: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error testing voice: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
