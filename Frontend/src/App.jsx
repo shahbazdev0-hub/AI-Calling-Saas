@@ -1,4 +1,4 @@
-﻿// // frontend/src/App.jsx - UPDATED WITH SMS & EMAIL LOGS ROUTES
+﻿// // frontend/src/App.jsx - without bulk call 
 
 // import React from "react";
 // import { Routes, Route, Navigate } from "react-router-dom";
@@ -35,20 +35,28 @@
 // import VoiceAgents from "./Pages/dashboard/calls/VoiceAgents";
 // import CallAnalytics from "./Pages/dashboard/calls/CallAnalytics";
 // import Recordings from "./Pages/dashboard/calls/Recordings";
+// import BulkCallCampaign from "./Pages/dashboard/calls/BulkCampaign"; // 🆕 NEW: Bulk Campaign (Call Center)
 
-// // ✅ NEW - Communication Pages (SMS & Email Logs)
+// // Communication Pages (SMS & Email Logs)
 // import SMSLogs from "./Pages/dashboard/communication/SMSLogs";
 // import EmailLogs from "./Pages/dashboard/communication/EmailLogs";
 // import SMSChat from "./Pages/dashboard/communication/SMSChat";
 
-// // Milestone 3: Keep only Campaigns (AI Campaign Builder)
+// // Milestone 3: Campaigns
 // import Campaigns from "./Pages/dashboard/automation/Campaigns";
+// import BulkSMSCampaign from "./Pages/dashboard/automation/BulkCampaign"; // 🆕 Bulk SMS Campaign (Automation)
 
 // // Admin Pages
 // import AdminPanel from "./Pages/dashboard/admin/AdminPanel";
 // import UserManagement from "./Pages/dashboard/admin/UserManagement";
 // import AccountSettings from "./Pages/dashboard/admin/AccountSettings";
 // import AdminAnalytics from "./Pages/dashboard/admin/Analytics";
+
+// // ✅ MILESTONE 4 - CRM Pages
+// import CRMDashboard from "./Pages/dashboard/crm/CRMDashboard";
+// import Customers from "./Pages/dashboard/crm/Customers";
+// import CustomerDetails from "./Pages/dashboard/crm/CustomerDetails";
+// import CustomerForm from "./Pages/dashboard/crm/CustomerForm";
 
 // // Error Pages
 // import NotFound from "./Pages/errors/NotFound";
@@ -98,15 +106,26 @@
 //             <Route path="agents" element={<VoiceAgents />} />
 //             <Route path="analytics" element={<CallAnalytics />} />
 //             <Route path="recordings" element={<Recordings />} />
+//             <Route path="bulk-campaign" element={<BulkCallCampaign />} /> {/* 🆕 Bulk Call Campaign */}
 //           </Route>
 
-//           {/* ✅ NEW - Communication Routes (SMS & Email Logs) */}
+//           {/* Communication Routes (SMS & Email Logs) */}
 //           <Route path="sms-logs" element={<SMSLogs />} />
 //           <Route path="sms-chat/:phoneNumber" element={<SMSChat />} />
 //           <Route path="email-logs" element={<EmailLogs />} />
 
-//           {/* Keep only AI Campaign Builder from Milestone 3 */}
+//           {/* Campaign Builder & Bulk Campaign */}
 //           <Route path="campaigns" element={<Campaigns />} />
+//           <Route path="bulk-campaign" element={<BulkSMSCampaign />} /> {/* 🆕 Bulk SMS Campaign */}
+
+//           {/* CRM Routes */}
+//           <Route path="crm">
+//             <Route index element={<CRMDashboard />} />
+//             <Route path="customers" element={<Customers />} />
+//             <Route path="customers/new" element={<CustomerForm />} />
+//             <Route path="customers/:customerId" element={<CustomerDetails />} />
+//             <Route path="customers/:customerId/edit" element={<CustomerForm />} />
+//           </Route>
 
 //           {/* Admin Routes */}
 //           <Route path="admin">
@@ -151,9 +170,7 @@
 // }
 
 // export default App;
-
-
-// frontend/src/App.jsx - FIXED
+// frontend/src/App.jsx - without bulk call 
 
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
@@ -182,6 +199,7 @@ import Dashboard from "./Pages/dashboard/Dashboard";
 import Overview from "./Pages/dashboard/Overview";
 import Profile from "./Pages/dashboard/Profile";
 import Settings from "./Pages/dashboard/Settings";
+import Calendar from "./Pages/dashboard/Calendar"; // ✅ Added Calendar import
 
 // Milestone 2: Call Pages
 import CallCenter from "./Pages/dashboard/calls/CallCenter";
@@ -190,6 +208,7 @@ import CallLogs from "./Pages/dashboard/calls/CallLogs";
 import VoiceAgents from "./Pages/dashboard/calls/VoiceAgents";
 import CallAnalytics from "./Pages/dashboard/calls/CallAnalytics";
 import Recordings from "./Pages/dashboard/calls/Recordings";
+import BulkCallCampaign from "./Pages/dashboard/calls/BulkCampaign"; // 🆕 NEW: Bulk Campaign (Call Center)
 
 // Communication Pages (SMS & Email Logs)
 import SMSLogs from "./Pages/dashboard/communication/SMSLogs";
@@ -198,6 +217,7 @@ import SMSChat from "./Pages/dashboard/communication/SMSChat";
 
 // Milestone 3: Campaigns
 import Campaigns from "./Pages/dashboard/automation/Campaigns";
+import BulkSMSCampaign from "./Pages/dashboard/automation/BulkCampaign"; // 🆕 Bulk SMS Campaign (Automation)
 
 // Admin Pages
 import AdminPanel from "./Pages/dashboard/admin/AdminPanel";
@@ -249,6 +269,7 @@ function App() {
           <Route path="overview" element={<Overview />} />
           <Route path="profile" element={<Profile />} />
           <Route path="settings" element={<Settings />} />
+          <Route path="calendar" element={<Calendar />} /> {/* ✅ Added Calendar route */}
 
           {/* Milestone 2: Call Routes */}
           <Route path="calls">
@@ -259,6 +280,7 @@ function App() {
             <Route path="agents" element={<VoiceAgents />} />
             <Route path="analytics" element={<CallAnalytics />} />
             <Route path="recordings" element={<Recordings />} />
+            <Route path="bulk-campaign" element={<BulkCallCampaign />} /> {/* 🆕 Bulk Call Campaign */}
           </Route>
 
           {/* Communication Routes (SMS & Email Logs) */}
@@ -266,10 +288,11 @@ function App() {
           <Route path="sms-chat/:phoneNumber" element={<SMSChat />} />
           <Route path="email-logs" element={<EmailLogs />} />
 
-          {/* Campaign Builder */}
+          {/* Campaign Builder & Bulk Campaign */}
           <Route path="campaigns" element={<Campaigns />} />
+          <Route path="bulk-campaign" element={<BulkSMSCampaign />} /> {/* 🆕 Bulk SMS Campaign */}
 
-          {/* ✅ FIXED - CRM Routes (Removed duplicate <ProtectedRoute>) */}
+          {/* CRM Routes */}
           <Route path="crm">
             <Route index element={<CRMDashboard />} />
             <Route path="customers" element={<Customers />} />

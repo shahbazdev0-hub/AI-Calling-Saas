@@ -1,19 +1,21 @@
-﻿// // frontend/src/Pages/dashboard/calls/CallLogs.jsx - Enhanced UI Version
+﻿// // frontend/src/Pages/dashboard/calls/CallLogs.jsx - COMPLETE WITH REGENERATE BUTTON
 // import React, { useState, useEffect } from "react";
 // import { 
 //   Search, FileText, Filter, Clock, User, Phone, 
-//   Download, Eye, ChevronDown, AlertCircle, Loader
+//   Download, Eye, ChevronDown, AlertCircle, Loader, Wrench
 // } from "lucide-react";
 // import Card from "../../../Components/ui/Card";
 // import Input from "../../../Components/ui/Input";
 // import Button from "../../../Components/ui/Button";
 // import { callService } from "../../../services/call";
+// import api from "../../../services/api";
 // import toast from "react-hot-toast";
 
 // const CallLogs = () => {
 //   const [logs, setLogs] = useState([]);
 //   const [filteredLogs, setFilteredLogs] = useState([]);
 //   const [isLoading, setIsLoading] = useState(true);
+//   const [isRegenerating, setIsRegenerating] = useState(false);
 //   const [searchTerm, setSearchTerm] = useState('');
 //   const [selectedLog, setSelectedLog] = useState(null);
 //   const [showTranscript, setShowTranscript] = useState(false);
@@ -30,6 +32,7 @@
 //   }, []);
 
 //   useEffect(() => {
+//     console.log('🔄 Applying filters - Current logs count:', logs.length);
 //     applyFilters();
 //   }, [logs, filters, searchTerm]);
 
@@ -37,25 +40,34 @@
 //     try {
 //       setIsLoading(true);
       
+//       console.log('📡 Fetching call logs from backend...');
 //       const response = await callService.getCallLogs({
-//         limit: 100,
-//         ...filters,
-//         search: searchTerm
+//         skip: 0,
+//         limit: 100
 //       });
       
-//       console.log('📋 Loaded call logs:', response);
+//       console.log('📦 RAW RESPONSE FROM BACKEND:', response);
+//       console.log('📊 Response type:', typeof response);
+//       console.log('📊 Is Array?:', Array.isArray(response));
+//       console.log('📊 Response length:', response?.length);
       
-//       if (!response || response.length === 0) {
-//         setLogs([]);
-//         setFilteredLogs([]);
-//         console.log('ℹ️ No call logs found in database');
-//       } else {
+//       if (response && Array.isArray(response)) {
+//         console.log('✅ Setting logs - Count:', response.length);
+//         console.log('📋 First 3 logs:', response.slice(0, 3));
+        
 //         setLogs(response);
 //         setFilteredLogs(response);
+        
+//         toast.success(`Loaded ${response.length} call logs`);
+//       } else {
+//         console.warn('⚠️ Response is not an array:', response);
+//         setLogs([]);
+//         setFilteredLogs([]);
 //       }
       
 //     } catch (error) {
 //       console.error('❌ Failed to load call logs:', error);
+//       console.error('❌ Error details:', error.response?.data);
 //       toast.error('Failed to load call logs');
 //       setLogs([]);
 //       setFilteredLogs([]);
@@ -64,40 +76,94 @@
 //     }
 //   };
 
+//   const handleRegenerateLogs = async () => {
+//     try {
+//       setIsRegenerating(true);
+//       console.log('🔧 Regenerating missing call logs...');
+      
+//       const response = await api.post('/calls/logs/regenerate');
+      
+//       console.log('✅ Regenerate response:', response.data);
+      
+//       if (response.data.created_logs > 0) {
+//         toast.success(`Created ${response.data.created_logs} missing logs!`);
+//       } else {
+//         toast.info(response.data.message || 'All calls already have logs');
+//       }
+      
+//       // Refresh the logs
+//       await loadCallLogs();
+      
+//     } catch (error) {
+//       console.error('❌ Failed to regenerate logs:', error);
+//       toast.error('Failed to regenerate logs');
+//     } finally {
+//       setIsRegenerating(false);
+//     }
+//   };
+
 //   const applyFilters = () => {
+//     console.log('🔍 Starting filter application');
+//     console.log('🔍 Logs to filter:', logs.length);
+//     console.log('🔍 Current filters:', filters);
+//     console.log('🔍 Search term:', searchTerm);
+    
 //     let filtered = [...logs];
+//     console.log('🔍 After copy:', filtered.length);
 
 //     if (searchTerm) {
+//       console.log('🔍 Applying search filter:', searchTerm);
 //       filtered = filtered.filter(log =>
 //         log.transcript?.toLowerCase().includes(searchTerm.toLowerCase()) ||
 //         log.summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
 //         log.keywords?.some(k => k.toLowerCase().includes(searchTerm.toLowerCase()))
 //       );
+//       console.log('🔍 After search filter:', filtered.length);
 //     }
 
 //     if (filters.outcome) {
+//       console.log('🔍 Applying outcome filter:', filters.outcome);
+//       const beforeCount = filtered.length;
 //       filtered = filtered.filter(log => log.outcome === filters.outcome);
+//       console.log(`🔍 After outcome filter: ${filtered.length} (removed ${beforeCount - filtered.length})`);
 //     }
 
 //     if (filters.sentiment) {
+//       console.log('🔍 Applying sentiment filter:', filters.sentiment);
+//       const beforeCount = filtered.length;
 //       filtered = filtered.filter(log => log.sentiment === filters.sentiment);
+//       console.log(`🔍 After sentiment filter: ${filtered.length} (removed ${beforeCount - filtered.length})`);
 //     }
 
 //     if (filters.dateFrom) {
+//       console.log('🔍 Applying dateFrom filter:', filters.dateFrom);
 //       const fromDate = new Date(filters.dateFrom);
-//       filtered = filtered.filter(log => new Date(log.created_at) >= fromDate);
+//       const beforeCount = filtered.length;
+//       filtered = filtered.filter(log => {
+//         const logDate = new Date(log.created_at);
+//         return logDate >= fromDate;
+//       });
+//       console.log(`🔍 After dateFrom filter: ${filtered.length} (removed ${beforeCount - filtered.length})`);
 //     }
 
 //     if (filters.dateTo) {
+//       console.log('🔍 Applying dateTo filter:', filters.dateTo);
 //       const toDate = new Date(filters.dateTo);
 //       toDate.setHours(23, 59, 59, 999);
-//       filtered = filtered.filter(log => new Date(log.created_at) <= toDate);
+//       const beforeCount = filtered.length;
+//       filtered = filtered.filter(log => {
+//         const logDate = new Date(log.created_at);
+//         return logDate <= toDate;
+//       });
+//       console.log(`🔍 After dateTo filter: ${filtered.length} (removed ${beforeCount - filtered.length})`);
 //     }
 
+//     console.log('✅ FINAL FILTERED COUNT:', filtered.length);
 //     setFilteredLogs(filtered);
 //   };
 
 //   const formatDate = (date) => {
+//     if (!date) return 'N/A';
 //     const d = new Date(date);
 //     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 //     return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -118,6 +184,8 @@
 //       case 'unsuccessful': return 'bg-red-100 text-[#f2070d] border border-[#f2070d]';
 //       case 'needs_followup': return 'bg-yellow-100 text-yellow-800 border border-yellow-500';
 //       case 'no_answer': return 'bg-gray-100 text-[#2C2C2C] border border-[#2C2C2C]';
+//       case 'information_provided': return 'bg-blue-100 text-blue-800 border border-blue-500';
+//       case 'callback_requested': return 'bg-purple-100 text-purple-800 border border-purple-500';
 //       default: return 'bg-gray-100 text-gray-800 border border-gray-500';
 //     }
 //   };
@@ -141,7 +209,11 @@
 //     a.click();
 //     document.body.removeChild(a);
 //     URL.revokeObjectURL(url);
+    
+//     toast.success('Transcript downloaded');
 //   };
+
+//   console.log('🎨 RENDER - Filtered logs to display:', filteredLogs.length);
 
 //   if (isLoading) {
 //     return (
@@ -171,113 +243,112 @@
 //                   <span className="text-[#2C2C2C]"> LOG</span>
 //                   <span className="text-[#f2070d]">S</span>
 //                 </h1>
-//                 <p className="text-gray-600 font-semibold">Detailed analysis and transcripts of your calls</p>
+//                 <p className="text-sm font-semibold text-gray-600">
+//                   Detailed analysis and transcripts of your calls
+//                 </p>
+//                 <p className="text-xs font-bold text-[#f2070d] mt-1">
+//                   DEBUG: Total Logs: {logs.length} | Filtered: {filteredLogs.length}
+//                 </p>
 //               </div>
 //             </div>
-//             <button 
-//               onClick={loadCallLogs} 
-//               className="px-6 py-3 bg-[#f2070d] text-white font-bold rounded-full hover:shadow-lg transition-all flex items-center space-x-2"
-//             >
-//               <Download className="h-4 w-4" />
-//               <span>REFRESH</span>
-//             </button>
+//             <div className="flex items-center gap-3">
+//               <Button
+//                 onClick={handleRegenerateLogs}
+//                 disabled={isRegenerating}
+//                 className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-full shadow-md hover:shadow-lg transition-all flex items-center space-x-2"
+//               >
+//                 {isRegenerating ? (
+//                   <>
+//                     <Loader className="h-5 w-5 animate-spin" />
+//                     <span>FIXING...</span>
+//                   </>
+//                 ) : (
+//                   <>
+//                     <Wrench className="h-5 w-5" />
+//                     <span>FIX MISSING LOGS</span>
+//                   </>
+//                 )}
+//               </Button>
+//               <Button
+//                 onClick={loadCallLogs}
+//                 className="px-6 py-3 bg-[#f2070d] hover:bg-[#d10609] text-white font-bold rounded-full shadow-md hover:shadow-lg transition-all flex items-center space-x-2"
+//               >
+//                 <Clock className="h-5 w-5" />
+//                 <span>REFRESH</span>
+//               </Button>
+//             </div>
 //           </div>
 //         </Card>
 
-//         {/* Search and Filters */}
+//         {/* Search & Filters */}
 //         <Card className="p-6 rounded-3xl shadow-lg bg-white border border-black">
-//           <div className="flex items-center space-x-3 mb-6">
-//             <Filter className="h-6 w-6 text-[#f2070d]" />
-//             <h3 className="text-xl font-bold text-[#2C2C2C]">Search & Filters</h3>
-//           </div>
-
-//           {/* Search Bar */}
-//           <div className="mb-6">
+//           <div className="space-y-4">
+//             {/* Search Bar */}
 //             <div className="relative">
-//               <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-[#f2070d] z-10" />
-//               <input
+//               <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" />
+//               <Input
 //                 type="text"
 //                 placeholder="Search in transcripts, summaries, or keywords..."
 //                 value={searchTerm}
 //                 onChange={(e) => setSearchTerm(e.target.value)}
-//                 className="w-full pl-12 pr-4 py-3 border border-black rounded-full font-bold text-[#2C2C2C] bg-white focus:ring-0 focus:outline-none shadow-md hover:shadow-lg transition-all"
+//                 className="pl-12 py-3 border border-black rounded-full font-semibold"
 //               />
 //             </div>
-//           </div>
 
-//           {/* Filter Controls */}
-//           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-//             {/* Outcome Filter */}
-//             <div>
-//               <label className="block text-sm font-black mb-2 uppercase tracking-wide">
-//                 <span className="text-[#2C2C2C]">OUTCOM</span>
-//                 <span className="text-[#f2070d]">E</span>
-//               </label>
-//               <select
-//                 value={filters.outcome}
-//                 onChange={(e) => setFilters({ ...filters, outcome: e.target.value })}
-//                 className="w-full px-4 py-3 border border-black rounded-full font-bold text-[#2C2C2C] bg-white focus:ring-0 focus:outline-none shadow-md hover:shadow-lg transition-all cursor-pointer"
-//               >
-//                 <option value="">All Outcomes</option>
-//                 <option value="successful">Successful</option>
-//                 <option value="needs_followup">Needs Follow-up</option>
-//                 <option value="no_answer">No Answer</option>
-//                 <option value="unsuccessful">Unsuccessful</option>
-//               </select>
-//             </div>
+//             {/* Filter Row */}
+//             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+//               {/* Outcome Filter */}
+//               <div>
+//                 <label className="block text-sm font-black mb-2 uppercase">OUTCOME</label>
+//                 <select
+//                   value={filters.outcome}
+//                   onChange={(e) => setFilters({ ...filters, outcome: e.target.value })}
+//                   className="w-full px-4 py-3 border border-black rounded-full font-bold bg-white"
+//                 >
+//                   <option value="">All Outcomes</option>
+//                   <option value="successful">Successful</option>
+//                   <option value="unsuccessful">Unsuccessful</option>
+//                   <option value="no_answer">No Answer</option>
+//                   <option value="information_provided">Info Provided</option>
+//                   <option value="callback_requested">Callback Requested</option>
+//                   <option value="unknown">Unknown</option>
+//                 </select>
+//               </div>
 
-//             {/* Sentiment Filter */}
-//             <div>
-//               <label className="block text-sm font-black mb-2 uppercase tracking-wide">
-//                 <span className="text-[#2C2C2C]">SENTIMEN</span>
-//                 <span className="text-[#f2070d]">T</span>
-//               </label>
-//               <select
-//                 value={filters.sentiment}
-//                 onChange={(e) => setFilters({ ...filters, sentiment: e.target.value })}
-//                 className="w-full px-4 py-3 border border-black rounded-full font-bold text-[#2C2C2C] bg-white focus:ring-0 focus:outline-none shadow-md hover:shadow-lg transition-all cursor-pointer"
-//               >
-//                 <option value="">All Sentiments</option>
-//                 <option value="positive">Positive</option>
-//                 <option value="neutral">Neutral</option>
-//                 <option value="negative">Negative</option>
-//               </select>
-//             </div>
+//               {/* Sentiment Filter */}
+//               <div>
+//                 <label className="block text-sm font-black mb-2 uppercase">SENTIMENT</label>
+//                 <select
+//                   value={filters.sentiment}
+//                   onChange={(e) => setFilters({ ...filters, sentiment: e.target.value })}
+//                   className="w-full px-4 py-3 border border-black rounded-full font-bold bg-white"
+//                 >
+//                   <option value="">All Sentiments</option>
+//                   <option value="positive">Positive</option>
+//                   <option value="neutral">Neutral</option>
+//                   <option value="negative">Negative</option>
+//                 </select>
+//               </div>
 
-//             {/* From Date */}
-//             <div>
-//               <label className="block text-sm font-black mb-2 uppercase tracking-wide">
-//                 <span className="text-[#2C2C2C]">FRO</span>
-//                 <span className="text-[#f2070d]">M</span>
-//                 <span className="text-[#2C2C2C]"> DAT</span>
-//                 <span className="text-[#f2070d]">E</span>
-//               </label>
-//               <div className="relative">
-//                 <Clock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-[#f2070d] pointer-events-none z-10" size={20} />
-//                 <input
+//               {/* Date From */}
+//               <div>
+//                 <label className="block text-sm font-black mb-2 uppercase">FROM DATE</label>
+//                 <Input
 //                   type="date"
 //                   value={filters.dateFrom}
 //                   onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
-//                   className="w-full pl-12 pr-4 py-3 border border-black rounded-full font-bold text-[#2C2C2C] bg-white focus:ring-0 focus:outline-none shadow-md hover:shadow-lg transition-all cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+//                   className="border border-black rounded-full font-semibold"
 //                 />
 //               </div>
-//             </div>
-            
-//             {/* To Date */}
-//             <div>
-//               <label className="block text-sm font-black mb-2 uppercase tracking-wide">
-//                 <span className="text-[#2C2C2C]">T</span>
-//                 <span className="text-[#f2070d]">O</span>
-//                 <span className="text-[#2C2C2C]"> DAT</span>
-//                 <span className="text-[#f2070d]">E</span>
-//               </label>
-//               <div className="relative">
-//                 <Clock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-[#f2070d] pointer-events-none z-10" size={20} />
-//                 <input
+
+//               {/* Date To */}
+//               <div>
+//                 <label className="block text-sm font-black mb-2 uppercase">TO DATE</label>
+//                 <Input
 //                   type="date"
 //                   value={filters.dateTo}
 //                   onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
-//                   className="w-full pl-12 pr-4 py-3 border border-black rounded-full font-bold text-[#2C2C2C] bg-white focus:ring-0 focus:outline-none shadow-md hover:shadow-lg transition-all cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+//                   className="border border-black rounded-full font-semibold"
 //                 />
 //               </div>
 //             </div>
@@ -285,107 +356,111 @@
 //         </Card>
 
 //         {/* Results Count */}
-//         <div className="text-center py-2">
-//           <p className="text-[#2C2C2C] font-bold text-lg">
-//             Showing <span className="text-[#f2070d] text-2xl">{filteredLogs.length}</span> of <span className="text-[#f2070d] text-2xl">{logs.length}</span> logs
+//         <div className="text-center">
+//           <p className="text-lg font-bold text-[#2C2C2C]">
+//             Showing <span className="text-[#f2070d]">{filteredLogs.length}</span> of <span className="text-[#f2070d]">{logs.length}</span> logs
 //           </p>
 //         </div>
 
-//         {/* Call Logs List */}
+//         {/* Call Logs Grid */}
 //         <div className="space-y-4">
 //           {filteredLogs.length === 0 ? (
-//             <Card className="p-8 sm:p-16 text-center rounded-3xl bg-white shadow-lg">
+//             <Card className="p-16 text-center rounded-3xl bg-white shadow-lg">
 //               <FileText size={72} className="mx-auto text-gray-300 mb-4" />
 //               <h3 className="text-xl font-bold text-[#2C2C2C] mb-2">No Call Logs Found</h3>
 //               <p className="text-gray-600 font-semibold mb-4">
 //                 {logs.length === 0 
-//                   ? "No call logs have been generated yet. Make some calls to see logs here." 
-//                   : "No logs match your current filters. Try adjusting your search criteria."
-//                 }
+//                   ? "No call logs have been generated yet." 
+//                   : "No logs match your current filters."}
 //               </p>
 //               {logs.length === 0 && (
-//                 <button 
-//                   onClick={() => window.location.href = '/dashboard/calls/center'} 
-//                   className="mt-4 px-6 py-3 bg-[#f2070d] text-white font-bold rounded-full hover:shadow-lg transition-all"
+//                 <Button
+//                   onClick={handleRegenerateLogs}
+//                   disabled={isRegenerating}
+//                   className="mt-4 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-full inline-flex items-center space-x-2"
 //                 >
-//                   START MAKING CALLS
-//                 </button>
+//                   {isRegenerating ? (
+//                     <>
+//                       <Loader className="h-5 w-5 animate-spin" />
+//                       <span>GENERATING LOGS...</span>
+//                     </>
+//                   ) : (
+//                     <>
+//                       <Wrench className="h-5 w-5" />
+//                       <span>GENERATE MISSING LOGS</span>
+//                     </>
+//                   )}
+//                 </Button>
 //               )}
 //             </Card>
 //           ) : (
-//             filteredLogs.map((log) => (
-//               <Card key={log._id} className="p-6 rounded-3xl bg-white hover:shadow-2xl hover:-translate-y-1 transition-all cursor-pointer">
-//                 <div className="flex items-start justify-between">
-//                   <div className="flex-1">
-//                     {/* Header with date and outcome */}
-//                     <div className="flex flex-wrap items-center gap-3 mb-4">
-//                       <div className="flex items-center space-x-2 text-gray-600 font-semibold">
-//                         <Clock className="h-4 w-4 text-[#f2070d]" />
-//                         <span className="text-sm">
-//                           {formatDate(log.created_at)}
+//             filteredLogs.map((log, index) => (
+//               <Card key={log._id} className="p-6 rounded-3xl bg-white hover:shadow-2xl transition-all">
+//                 <div className="space-y-4">
+//                   {/* Header */}
+//                   <div className="flex items-start justify-between">
+//                     <div className="flex-1">
+//                       <div className="flex flex-wrap items-center gap-3 mb-2">
+//                         <div className="flex items-center space-x-2 text-gray-600 font-semibold">
+//                           <Clock className="h-4 w-4 text-[#f2070d]" />
+//                           <span className="text-sm">{formatDate(log.created_at)}</span>
+//                         </div>
+//                         <span className={`px-4 py-1 text-xs font-bold rounded-xl uppercase ${getOutcomeColor(log.outcome)}`}>
+//                           {log.outcome || 'Unknown'}
 //                         </span>
+//                         <span className={`px-4 py-1 text-xs font-bold rounded-xl uppercase ${getSentimentColor(log.sentiment)}`}>
+//                           {log.sentiment || 'Neutral'}
+//                         </span>
+//                         {log.recording_duration > 0 && (
+//                           <div className="bg-[#f2070d] px-4 py-2 rounded-xl text-white">
+//                             <span className="text-xs font-bold">{formatDuration(log.recording_duration)}</span>
+//                           </div>
+//                         )}
 //                       </div>
-//                       <span className={`px-4 py-1 text-xs font-bold rounded-xl uppercase ${getOutcomeColor(log.outcome)}`}>
-//                         {log.outcome || 'Unknown'}
-//                       </span>
-//                       <span className={`px-4 py-1 text-xs font-bold rounded-xl uppercase ${getSentimentColor(log.sentiment)}`}>
-//                         {log.sentiment || 'Neutral'}
-//                       </span>
-//                       {log.recording_duration > 0 && (
-//                         <div className="bg-[#f2070d] px-4 py-2 rounded-xl text-white">
-//                           <span className="text-xs font-bold">{formatDuration(log.recording_duration)}</span>
-//                         </div>
-//                       )}
 //                     </div>
+//                   </div>
 
-//                     {/* Summary */}
-//                     <div className="mb-4 bg-gray-50 p-4 rounded-2xl">
-//                       <h4 className="font-black text-[#2C2C2C] mb-2 uppercase text-sm tracking-wide">
-//                         <span className="text-[#2C2C2C]">SUMMAR</span>
-//                         <span className="text-[#f2070d]">Y</span>
-//                       </h4>
-//                       <p className="text-gray-700 font-semibold text-sm">
-//                         {log.summary || 'No summary available'}
-//                       </p>
-//                     </div>
+//                   {/* Summary */}
+//                   <div className="bg-gray-50 p-4 rounded-2xl">
+//                     <h4 className="font-black text-[#2C2C2C] mb-2 uppercase text-sm">SUMMARY</h4>
+//                     <p className="text-gray-700 font-semibold text-sm">
+//                       {log.summary || 'No summary available'}
+//                     </p>
+//                   </div>
 
-//                     {/* Keywords */}
-//                     {log.keywords && log.keywords.length > 0 && (
-//                       <div className="mb-4">
-//                         <h5 className="text-xs font-black text-[#2C2C2C] mb-2 uppercase tracking-wide">
-//                           KEYWORDS
-//                         </h5>
-//                         <div className="flex flex-wrap gap-2">
-//                           {log.keywords.map((keyword, index) => (
-//                             <span key={index} className="px-3 py-1 bg-gray-100 border border-[#2C2C2C] text-[#2C2C2C] text-xs font-bold rounded-full uppercase">
-//                               {keyword}
-//                             </span>
-//                           ))}
-//                         </div>
+//                   {/* Keywords */}
+//                   {log.keywords && log.keywords.length > 0 && (
+//                     <div>
+//                       <h5 className="text-xs font-black text-[#2C2C2C] mb-2 uppercase">KEYWORDS</h5>
+//                       <div className="flex flex-wrap gap-2">
+//                         {log.keywords.map((keyword, idx) => (
+//                           <span key={idx} className="px-3 py-1 bg-gray-100 border border-[#2C2C2C] text-[#2C2C2C] text-xs font-bold rounded-full uppercase">
+//                             {keyword}
+//                           </span>
+//                         ))}
 //                       </div>
-//                     )}
-
-//                     {/* Action Buttons */}
-//                     <div className="flex flex-wrap items-center gap-3 mt-4">
-//                       <button
-//                         onClick={() => {
-//                           setSelectedLog(log);
-//                           setShowTranscript(true);
-//                         }}
-//                         className="px-5 py-2 border-2 border-[#2C2C2C] text-[#2C2C2C] font-bold rounded-full hover:bg-[#2C2C2C] hover:text-white transition-all flex items-center space-x-2"
-//                       >
-//                         <Eye className="h-4 w-4" />
-//                         <span>VIEW TRANSCRIPT</span>
-//                       </button>
-                      
-//                       <button
-//                         onClick={() => downloadTranscript(log)}
-//                         className="px-5 py-2 border-2 border-[#f2070d] text-[#f2070d] font-bold rounded-full hover:bg-[#f2070d] hover:text-white transition-all flex items-center space-x-2"
-//                       >
-//                         <Download className="h-4 w-4" />
-//                         <span>DOWNLOAD</span>
-//                       </button>
 //                     </div>
+//                   )}
+
+//                   {/* Actions */}
+//                   <div className="flex items-center gap-3">
+//                     <button
+//                       onClick={() => {
+//                         setSelectedLog(log);
+//                         setShowTranscript(true);
+//                       }}
+//                       className="px-5 py-2 border-2 border-[#2C2C2C] text-[#2C2C2C] font-bold rounded-full hover:bg-[#2C2C2C] hover:text-white transition-all flex items-center space-x-2"
+//                     >
+//                       <Eye className="h-4 w-4" />
+//                       <span>VIEW TRANSCRIPT</span>
+//                     </button>
+//                     <button
+//                       onClick={() => downloadTranscript(log)}
+//                       className="px-5 py-2 bg-[#f2070d] text-white font-bold rounded-full hover:bg-[#d10609] transition-all flex items-center space-x-2"
+//                     >
+//                       <Download className="h-4 w-4" />
+//                       <span>DOWNLOAD</span>
+//                     </button>
 //                   </div>
 //                 </div>
 //               </Card>
@@ -395,46 +470,38 @@
 
 //         {/* Transcript Modal */}
 //         {showTranscript && selectedLog && (
-//           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-//             <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[80vh] overflow-hidden border-4 border-[#f2070d] shadow-2xl">
-//               <div className="p-6 border-b-2 border-gray-200 bg-gray-50">
-//                 <div className="flex items-center justify-between">
-//                   <h3 className="text-lg font-black text-[#2C2C2C] uppercase tracking-wide">
-//                     <span className="text-[#2C2C2C]">CALL TRANSCR</span>
-//                     <span className="text-[#f2070d]">I</span>
-//                     <span className="text-[#2C2C2C]">PT</span>
-//                   </h3>
-//                   <button
-//                     onClick={() => setShowTranscript(false)}
-//                     className="px-5 py-2 border-2 border-[#2C2C2C] text-[#2C2C2C] font-bold rounded-full hover:bg-[#2C2C2C] hover:text-white transition-all"
-//                   >
-//                     CLOSE
-//                   </button>
-//                 </div>
-//                 <p className="text-sm text-gray-600 font-semibold mt-2">
-//                   {formatDate(selectedLog.created_at)}
-//                 </p>
+//           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+//             <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl">
+//               <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+//                 <h3 className="text-2xl font-black text-[#2C2C2C] uppercase">
+//                   <span className="text-[#2C2C2C]">TRANSCRI</span>
+//                   <span className="text-[#f2070d]">PT</span>
+//                 </h3>
+//                 <button
+//                   onClick={() => {
+//                     setShowTranscript(false);
+//                     setSelectedLog(null);
+//                   }}
+//                   className="p-2 hover:bg-gray-100 rounded-full transition-all"
+//                 >
+//                   <span className="text-2xl font-bold text-[#2C2C2C]">×</span>
+//                 </button>
 //               </div>
               
 //               <div className="p-6 overflow-y-auto max-h-[60vh]">
 //                 <div className="space-y-6">
+//                   {/* Summary */}
 //                   <div>
-//                     <h4 className="font-black text-[#2C2C2C] mb-3 uppercase text-sm tracking-wide">
-//                       <span className="text-[#2C2C2C]">SUMMAR</span>
-//                       <span className="text-[#f2070d]">Y</span>
-//                     </h4>
-//                     <p className="text-gray-700 font-semibold bg-gray-50 p-4 rounded-2xl border border-gray-200">
+//                     <h4 className="font-black text-[#2C2C2C] mb-3 uppercase text-sm">SUMMARY</h4>
+//                     <p className="text-gray-700 font-semibold bg-gray-50 p-4 rounded-2xl">
 //                       {selectedLog.summary || 'No summary available'}
 //                     </p>
 //                   </div>
                   
+//                   {/* Full Transcript */}
 //                   <div>
-//                     <h4 className="font-black text-[#2C2C2C] mb-3 uppercase text-sm tracking-wide">
-//                       <span className="text-[#2C2C2C]">FULL TRANSCR</span>
-//                       <span className="text-[#f2070d]">I</span>
-//                       <span className="text-[#2C2C2C]">PT</span>
-//                     </h4>
-//                     <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200 max-h-96 overflow-y-auto">
+//                     <h4 className="font-black text-[#2C2C2C] mb-3 uppercase text-sm">FULL TRANSCRIPT</h4>
+//                     <div className="bg-gray-50 p-4 rounded-2xl max-h-96 overflow-y-auto">
 //                       <pre className="whitespace-pre-wrap text-sm text-gray-700 font-semibold">
 //                         {selectedLog.transcript || 'No transcript available'}
 //                       </pre>
@@ -450,27 +517,31 @@
 //   );
 // };
 
-// export default CallLogs;
+// export default CallLogs;  
 
 
-// frontend/src/Pages/dashboard/calls/CallLogs.jsx - Enhanced UI Version
+
+
+
+
+// frontend/src/Pages/dashboard/calls/CallLogs.jsx
 import React, { useState, useEffect } from "react";
-import { useLocation } from "react-router-dom";
 import { 
   Search, FileText, Filter, Clock, User, Phone, 
-  Download, Eye, ChevronDown, AlertCircle, Loader, Calendar
+  Download, Eye, ChevronDown, AlertCircle, Loader, Wrench
 } from "lucide-react";
 import Card from "../../../Components/ui/Card";
 import Input from "../../../Components/ui/Input";
 import Button from "../../../Components/ui/Button";
 import { callService } from "../../../services/call";
+import api from "../../../services/api";
 import toast from "react-hot-toast";
 
 const CallLogs = () => {
-  const location = useLocation();
   const [logs, setLogs] = useState([]);
   const [filteredLogs, setFilteredLogs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRegenerating, setIsRegenerating] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLog, setSelectedLog] = useState(null);
   const [showTranscript, setShowTranscript] = useState(false);
@@ -487,47 +558,50 @@ const CallLogs = () => {
   }, []);
 
   useEffect(() => {
+    console.log('🔄 Applying filters - Current logs count:', logs.length);
     applyFilters();
   }, [logs, filters, searchTerm]);
-
-  // Check for selectedCallId from navigation state
-  useEffect(() => {
-    if (location.state?.selectedCallId && logs.length > 0) {
-      const callId = location.state.selectedCallId;
-      const foundLog = logs.find(log => log._id === callId || log.id === callId);
-      if (foundLog) {
-        setSelectedLog(foundLog);
-        setShowTranscript(true);
-      }
-      // Clear the state to prevent re-opening on subsequent renders
-      window.history.replaceState({}, document.title);
-    }
-  }, [location.state, logs]);
 
   const loadCallLogs = async () => {
     try {
       setIsLoading(true);
       
+      console.log('📡 Fetching call logs from backend...');
+      
       const response = await callService.getCallLogs({
-        limit: 100,
-        ...filters,
-        search: searchTerm
+        skip: 0,
+        limit: 100
       });
       
-      console.log('📋 Loaded call logs:', response);
+      console.log('📦 RAW RESPONSE FROM getCallLogs:', response);
+      console.log('📊 Response type:', typeof response);
+      console.log('📊 Is Array?:', Array.isArray(response));
       
-      if (!response || response.length === 0) {
-        setLogs([]);
-        setFilteredLogs([]);
-        console.log('ℹ️ No call logs found in database');
-      } else {
+      // ✅ FIX: callService.getCallLogs() now returns array directly
+      if (response && Array.isArray(response)) {
+        console.log('✅ Setting logs - Count:', response.length);
+        console.log('📋 First 3 logs:', response.slice(0, 3));
+        
         setLogs(response);
         setFilteredLogs(response);
+        
+        if (response.length > 0) {
+          toast.success(`Loaded ${response.length} call logs`);
+        } else {
+          toast.info('No call logs found');
+        }
+      } else {
+        console.warn('⚠️ Response is not an array:', response);
+        setLogs([]);
+        setFilteredLogs([]);
+        toast.info('No call logs available');
       }
       
     } catch (error) {
       console.error('❌ Failed to load call logs:', error);
-      toast.error('Failed to load call logs');
+      console.error('❌ Error details:', error.response?.data);
+      console.error('❌ Error message:', error.message);
+      toast.error(`Failed to load call logs: ${error.message}`);
       setLogs([]);
       setFilteredLogs([]);
     } finally {
@@ -535,70 +609,117 @@ const CallLogs = () => {
     }
   };
 
+  const handleRegenerateLogs = async () => {
+    try {
+      setIsRegenerating(true);
+      console.log('🔧 Regenerating missing call logs...');
+      
+      const response = await api.post('/calls/logs/regenerate');
+      
+      console.log('✅ Regenerate response:', response.data);
+      
+      if (response.data.created_logs > 0) {
+        toast.success(`Created ${response.data.created_logs} missing logs!`);
+      } else {
+        toast.info(response.data.message || 'All calls already have logs');
+      }
+      
+      // Refresh the logs
+      await loadCallLogs();
+      
+    } catch (error) {
+      console.error('❌ Failed to regenerate logs:', error);
+      toast.error('Failed to regenerate logs');
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
   const applyFilters = () => {
+    console.log('🔍 Starting filter application');
+    console.log('🔍 Logs to filter:', logs.length);
+    console.log('🔍 Current filters:', filters);
+    console.log('🔍 Search term:', searchTerm);
+    
     let filtered = [...logs];
+    console.log('🔍 After copy:', filtered.length);
 
     if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(log => 
-        log.summary?.toLowerCase().includes(term) ||
-        log.transcript?.toLowerCase().includes(term) ||
-        log.phone_number?.includes(term) ||
-        log.keywords?.some(k => k.toLowerCase().includes(term))
+      console.log('🔍 Applying search filter:', searchTerm);
+      filtered = filtered.filter(log =>
+        log.transcript?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        log.summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        log.keywords?.some(k => k.toLowerCase().includes(searchTerm.toLowerCase()))
       );
+      console.log('🔍 After search filter:', filtered.length);
     }
 
     if (filters.outcome) {
+      console.log('🔍 Applying outcome filter:', filters.outcome);
+      const beforeCount = filtered.length;
       filtered = filtered.filter(log => log.outcome === filters.outcome);
+      console.log(`🔍 After outcome filter: ${filtered.length} (removed ${beforeCount - filtered.length})`);
     }
 
     if (filters.sentiment) {
+      console.log('🔍 Applying sentiment filter:', filters.sentiment);
+      const beforeCount = filtered.length;
       filtered = filtered.filter(log => log.sentiment === filters.sentiment);
+      console.log(`🔍 After sentiment filter: ${filtered.length} (removed ${beforeCount - filtered.length})`);
     }
 
     if (filters.dateFrom) {
-      filtered = filtered.filter(log => 
-        new Date(log.created_at) >= new Date(filters.dateFrom)
-      );
+      console.log('🔍 Applying dateFrom filter:', filters.dateFrom);
+      const fromDate = new Date(filters.dateFrom);
+      const beforeCount = filtered.length;
+      filtered = filtered.filter(log => {
+        const logDate = new Date(log.created_at);
+        return logDate >= fromDate;
+      });
+      console.log(`🔍 After dateFrom filter: ${filtered.length} (removed ${beforeCount - filtered.length})`);
     }
 
     if (filters.dateTo) {
-      filtered = filtered.filter(log => 
-        new Date(log.created_at) <= new Date(filters.dateTo)
-      );
+      console.log('🔍 Applying dateTo filter:', filters.dateTo);
+      const toDate = new Date(filters.dateTo);
+      toDate.setHours(23, 59, 59, 999);
+      const beforeCount = filtered.length;
+      filtered = filtered.filter(log => {
+        const logDate = new Date(log.created_at);
+        return logDate <= toDate;
+      });
+      console.log(`🔍 After dateTo filter: ${filtered.length} (removed ${beforeCount - filtered.length})`);
     }
 
+    console.log('✅ FINAL FILTERED COUNT:', filtered.length);
     setFilteredLogs(filtered);
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleString();
+  const formatDate = (date) => {
+    if (!date) return 'N/A';
+    const d = new Date(date);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   };
 
-  const getOutcomeBadge = (outcome) => {
-    switch (outcome) {
-      case 'successful':
-        return 'bg-green-100 text-green-800 border border-green-500';
-      case 'needs_followup':
-        return 'bg-yellow-100 text-yellow-800 border border-yellow-500';
-      case 'no_answer':
-        return 'bg-red-100 text-red-800 border border-red-500';
-      default:
-        return 'bg-gray-100 text-gray-800 border border-gray-500';
+  const getSentimentColor = (sentiment) => {
+    switch (sentiment) {
+      case 'positive': return 'bg-green-100 text-green-800 border border-green-500';
+      case 'negative': return 'bg-red-100 text-[#f2070d] border border-[#f2070d]';
+      case 'neutral': return 'bg-gray-100 text-[#2C2C2C] border border-[#2C2C2C]';
+      default: return 'bg-gray-100 text-gray-800 border border-gray-500';
     }
   };
 
-  const getSentimentBadge = (sentiment) => {
-    switch (sentiment) {
-      case 'positive':
-        return 'bg-green-100 text-green-800 border border-green-500';
-      case 'negative':
-        return 'bg-red-100 text-red-800 border border-red-500';
-      case 'neutral':
-        return 'bg-blue-100 text-blue-800 border border-blue-500';
-      default:
-        return 'bg-gray-100 text-gray-800 border border-gray-500';
+  const getOutcomeColor = (outcome) => {
+    switch (outcome) {
+      case 'successful': return 'bg-green-100 text-green-800 border border-green-500';
+      case 'unsuccessful': return 'bg-red-100 text-[#f2070d] border border-[#f2070d]';
+      case 'needs_followup': return 'bg-yellow-100 text-yellow-800 border border-yellow-500';
+      case 'no_answer': return 'bg-gray-100 text-[#2C2C2C] border border-[#2C2C2C]';
+      case 'information_provided': return 'bg-blue-100 text-blue-800 border border-blue-500';
+      case 'callback_requested': return 'bg-purple-100 text-purple-800 border border-purple-500';
+      default: return 'bg-gray-100 text-gray-800 border border-gray-500';
     }
   };
 
@@ -610,49 +731,22 @@ const CallLogs = () => {
   };
 
   const downloadTranscript = (log) => {
-    const content = `Call Log - ${formatDate(log.created_at)}\n\nSummary:\n${log.summary || 'No summary available'}\n\nTranscript:\n${log.transcript || 'No transcript available'}\n\nKeywords: ${log.keywords?.join(', ') || 'None'}\nOutcome: ${log.outcome || 'N/A'}\nSentiment: ${log.sentiment || 'N/A'}`;
+    const content = `Call Log - ${formatDate(log.created_at)}\n\nSummary:\n${log.summary}\n\nTranscript:\n${log.transcript}\n\nKeywords: ${log.keywords?.join(', ')}\nOutcome: ${log.outcome}\nSentiment: ${log.sentiment}`;
     
     const blob = new Blob([content], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `call-log-${log._id || log.id}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const exportLogs = () => {
-    if (filteredLogs.length === 0) {
-      toast.error('No logs to export');
-      return;
-    }
-
-    const csvContent = [
-      ['Date', 'Phone', 'Duration', 'Outcome', 'Sentiment', 'Summary'].join(','),
-      ...filteredLogs.map(log => [
-        formatDate(log.created_at),
-        log.phone_number || 'N/A',
-        formatDuration(log.recording_duration || log.duration),
-        log.outcome || 'N/A',
-        log.sentiment || 'N/A',
-        `"${(log.summary || '').replace(/"/g, '""')}"`
-      ].join(','))
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `call-logs-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `call-log-${log._id}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     
-    toast.success('Logs exported successfully');
+    toast.success('Transcript downloaded');
   };
+
+  console.log('🎨 RENDER - Filtered logs to display:', filteredLogs.length);
 
   if (isLoading) {
     return (
@@ -682,179 +776,185 @@ const CallLogs = () => {
                   <span className="text-[#2C2C2C]"> LOG</span>
                   <span className="text-[#f2070d]">S</span>
                 </h1>
-                <p className="text-gray-600 mt-1 font-semibold">
-                  Detailed logs and transcripts from your calls
+                <p className="text-sm font-semibold text-gray-600">
+                  Detailed analysis and transcripts of your calls
                 </p>
               </div>
             </div>
-            <button
-              onClick={exportLogs}
-              disabled={filteredLogs.length === 0}
-              className="px-6 py-3 bg-[#f2070d] text-white font-bold rounded-full shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-            >
-              <Download className="h-4 w-4" />
-              <span>EXPORT</span>
-            </button>
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={loadCallLogs}
+                className="px-6 py-3 bg-[#f2070d] hover:bg-[#d10609] text-white font-bold rounded-full shadow-md hover:shadow-lg transition-all flex items-center space-x-2"
+              >
+                <Clock className="h-5 w-5" />
+                <span>REFRESH</span>
+              </Button>
+            </div>
           </div>
         </Card>
 
-        {/* Filters */}
+        {/* Search & Filters */}
         <Card className="p-6 rounded-3xl shadow-lg bg-white border border-black">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            {/* Search */}
-            <div className="lg:col-span-2">
-              <label className="block text-sm font-black mb-2 uppercase tracking-wide">
-                Search
-              </label>
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search logs..."
-                  className="w-full pl-12 pr-4 py-3 border border-black rounded-full font-bold focus:outline-none focus:ring-2 focus:ring-[#f2070d]"
+          <div className="space-y-4">
+            {/* Search Bar */}
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <Input
+                type="text"
+                placeholder="Search in transcripts, summaries, or keywords..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-12 py-3 border border-black rounded-full font-semibold"
+              />
+            </div>
+
+            {/* Filter Row */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {/* Outcome Filter */}
+              <div>
+                <label className="block text-sm font-black mb-2 uppercase">OUTCOME</label>
+                <select
+                  value={filters.outcome}
+                  onChange={(e) => setFilters({ ...filters, outcome: e.target.value })}
+                  className="w-full px-4 py-3 border border-black rounded-full font-bold bg-white"
+                >
+                  <option value="">All Outcomes</option>
+                  <option value="successful">Successful</option>
+                  <option value="unsuccessful">Unsuccessful</option>
+                  <option value="no_answer">No Answer</option>
+                  <option value="information_provided">Info Provided</option>
+                  <option value="callback_requested">Callback Requested</option>
+                  <option value="unknown">Unknown</option>
+                </select>
+              </div>
+
+              {/* Sentiment Filter */}
+              <div>
+                <label className="block text-sm font-black mb-2 uppercase">SENTIMENT</label>
+                <select
+                  value={filters.sentiment}
+                  onChange={(e) => setFilters({ ...filters, sentiment: e.target.value })}
+                  className="w-full px-4 py-3 border border-black rounded-full font-bold bg-white"
+                >
+                  <option value="">All Sentiments</option>
+                  <option value="positive">Positive</option>
+                  <option value="neutral">Neutral</option>
+                  <option value="negative">Negative</option>
+                </select>
+              </div>
+
+              {/* Date From */}
+              <div>
+                <label className="block text-sm font-black mb-2 uppercase">FROM DATE</label>
+                <Input
+                  type="date"
+                  value={filters.dateFrom}
+                  onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
+                  className="border border-black rounded-full font-semibold"
+                />
+              </div>
+
+              {/* Date To */}
+              <div>
+                <label className="block text-sm font-black mb-2 uppercase">TO DATE</label>
+                <Input
+                  type="date"
+                  value={filters.dateTo}
+                  onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
+                  className="border border-black rounded-full font-semibold"
                 />
               </div>
             </div>
-
-            {/* Outcome Filter */}
-            <div>
-              <label className="block text-sm font-black mb-2 uppercase tracking-wide">
-                Outcome
-              </label>
-              <select
-                value={filters.outcome}
-                onChange={(e) => setFilters({...filters, outcome: e.target.value})}
-                className="w-full px-4 py-3 border border-black rounded-full font-bold focus:outline-none focus:ring-2 focus:ring-[#f2070d]"
-              >
-                <option value="">All</option>
-                <option value="successful">Successful</option>
-                <option value="needs_followup">Needs Follow-up</option>
-                <option value="no_answer">No Answer</option>
-              </select>
-            </div>
-
-            {/* Sentiment Filter */}
-            <div>
-              <label className="block text-sm font-black mb-2 uppercase tracking-wide">
-                Sentiment
-              </label>
-              <select
-                value={filters.sentiment}
-                onChange={(e) => setFilters({...filters, sentiment: e.target.value})}
-                className="w-full px-4 py-3 border border-black rounded-full font-bold focus:outline-none focus:ring-2 focus:ring-[#f2070d]"
-              >
-                <option value="">All</option>
-                <option value="positive">Positive</option>
-                <option value="neutral">Neutral</option>
-                <option value="negative">Negative</option>
-              </select>
-            </div>
-
-            {/* Date Filter */}
-            <div>
-              <label className="block text-sm font-black mb-2 uppercase tracking-wide">
-                Date From
-              </label>
-              <input
-                type="date"
-                value={filters.dateFrom}
-                onChange={(e) => setFilters({...filters, dateFrom: e.target.value})}
-                className="w-full px-4 py-3 border border-black rounded-full font-bold focus:outline-none focus:ring-2 focus:ring-[#f2070d]"
-              />
-            </div>
           </div>
         </Card>
 
-        {/* Logs List */}
+        {/* Results Count */}
+        <div className="text-center">
+          <p className="text-lg font-bold text-[#2C2C2C]">
+            Showing <span className="text-[#f2070d]">{filteredLogs.length}</span> of <span className="text-[#f2070d]">{logs.length}</span> logs
+          </p>
+        </div>
+
+        {/* Call Logs Grid */}
         <div className="space-y-4">
           {filteredLogs.length === 0 ? (
-            <Card className="p-12 text-center rounded-3xl bg-white border border-gray-200">
+            <Card className="p-16 text-center rounded-3xl bg-white shadow-lg">
               <FileText size={72} className="mx-auto text-gray-300 mb-4" />
-              <p className="text-[#2C2C2C] text-xl font-bold">No logs found</p>
-              <p className="text-gray-500 text-sm mt-2">
-                {logs.length === 0 ? 'No call logs in database yet' : 'Try adjusting your filters'}
+              <h3 className="text-xl font-bold text-[#2C2C2C] mb-2">No Call Logs Found</h3>
+              <p className="text-gray-600 font-semibold mb-4">
+                {logs.length === 0 
+                  ? "No call logs have been generated yet." 
+                  : "No logs match your current filters."}
               </p>
             </Card>
           ) : (
-            filteredLogs.map(log => (
-              <Card
-                key={log._id || log.id}
-                className="p-6 rounded-3xl transition-all hover:shadow-xl bg-white border border-gray-200"
-              >
-                <div className="flex flex-col lg:flex-row items-start justify-between gap-4">
-                  <div className="flex-1 w-full">
-                    {/* Header Info */}
-                    <div className="flex flex-wrap items-center gap-3 mb-3">
-                      <span className="flex items-center text-sm text-gray-600 font-semibold">
-                        <Calendar size={14} className="mr-2 text-[#f2070d]" />
-                        {formatDate(log.created_at)}
-                      </span>
-                      {log.phone_number && (
-                        <span className="flex items-center text-sm text-gray-600 font-semibold">
-                          <Phone size={14} className="mr-2 text-[#f2070d]" />
-                          {log.phone_number}
+            filteredLogs.map((log, index) => (
+              <Card key={log._id} className="p-6 rounded-3xl bg-white hover:shadow-2xl transition-all">
+                <div className="space-y-4">
+                  {/* Header */}
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex flex-wrap items-center gap-3 mb-2">
+                        <div className="flex items-center space-x-2 text-gray-600 font-semibold">
+                          <Clock className="h-4 w-4 text-[#f2070d]" />
+                          <span className="text-sm">{formatDate(log.created_at)}</span>
+                        </div>
+                        <span className={`px-4 py-1 text-xs font-bold rounded-xl uppercase ${getOutcomeColor(log.outcome)}`}>
+                          {log.outcome || 'Unknown'}
                         </span>
-                      )}
-                      <span className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${getOutcomeBadge(log.outcome)}`}>
-                        {log.outcome || 'N/A'}
-                      </span>
-                      {log.sentiment && (
-                        <span className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${getSentimentBadge(log.sentiment)}`}>
-                          {log.sentiment}
+                        <span className={`px-4 py-1 text-xs font-bold rounded-xl uppercase ${getSentimentColor(log.sentiment)}`}>
+                          {log.sentiment || 'Neutral'}
                         </span>
-                      )}
+                        {log.recording_duration > 0 && (
+                          <div className="bg-[#f2070d] px-4 py-2 rounded-xl text-white">
+                            <span className="text-xs font-bold">{formatDuration(log.recording_duration)}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
+                  </div>
 
-                    {/* Summary */}
-                    {log.summary && (
-                      <p className="text-gray-800 mb-3 font-semibold">{log.summary}</p>
-                    )}
+                  {/* Summary */}
+                  <div className="bg-gray-50 p-4 rounded-2xl">
+                    <h4 className="font-black text-[#2C2C2C] mb-2 uppercase text-sm">SUMMARY</h4>
+                    <p className="text-gray-700 font-semibold text-sm">
+                      {log.summary || 'No summary available'}
+                    </p>
+                  </div>
 
-                    {/* Keywords */}
-                    {log.keywords && log.keywords.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mb-3">
-                        {log.keywords.map((keyword, index) => (
-                          <span
-                            key={index}
-                            className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-bold border border-gray-300"
-                          >
+                  {/* Keywords */}
+                  {log.keywords && log.keywords.length > 0 && (
+                    <div>
+                      <h5 className="text-xs font-black text-[#2C2C2C] mb-2 uppercase">KEYWORDS</h5>
+                      <div className="flex flex-wrap gap-2">
+                        {log.keywords.map((keyword, idx) => (
+                          <span key={idx} className="px-3 py-1 bg-gray-100 border border-[#2C2C2C] text-[#2C2C2C] text-xs font-bold rounded-full uppercase">
                             {keyword}
                           </span>
                         ))}
                       </div>
-                    )}
-
-                    {/* Actions */}
-                    <div className="flex flex-wrap gap-3 mt-4">
-                      <button
-                        onClick={() => {
-                          setSelectedLog(log);
-                          setShowTranscript(true);
-                        }}
-                        className="px-5 py-2 border-2 border-[#2C2C2C] text-[#2C2C2C] font-bold rounded-full hover:bg-[#2C2C2C] hover:text-white transition-all flex items-center space-x-2"
-                      >
-                        <Eye className="h-4 w-4" />
-                        <span>VIEW TRANSCRIPT</span>
-                      </button>
-                      
-                      <button
-                        onClick={() => downloadTranscript(log)}
-                        className="px-5 py-2 border-2 border-[#f2070d] text-[#f2070d] font-bold rounded-full hover:bg-[#f2070d] hover:text-white transition-all flex items-center space-x-2"
-                      >
-                        <Download className="h-4 w-4" />
-                        <span>DOWNLOAD</span>
-                      </button>
                     </div>
-                  </div>
+                  )}
 
-                  {/* Duration Badge */}
-                  <div className="bg-[#f2070d] px-6 py-4 rounded-2xl text-white text-center min-w-[120px]">
-                    <p className="text-xs font-bold uppercase mb-1">Duration</p>
-                    <p className="text-2xl font-black">
-                      {formatDuration(log.recording_duration || log.duration)}
-                    </p>
+                  {/* Actions */}
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => {
+                        setSelectedLog(log);
+                        setShowTranscript(true);
+                      }}
+                      className="px-5 py-2 border-2 border-[#2C2C2C] text-[#2C2C2C] font-bold rounded-full hover:bg-[#2C2C2C] hover:text-white transition-all flex items-center space-x-2"
+                    >
+                      <Eye className="h-4 w-4" />
+                      <span>VIEW TRANSCRIPT</span>
+                    </button>
+                    <button
+                      onClick={() => downloadTranscript(log)}
+                      className="px-5 py-2 bg-[#f2070d] text-white font-bold rounded-full hover:bg-[#d10609] transition-all flex items-center space-x-2"
+                    >
+                      <Download className="h-4 w-4" />
+                      <span>DOWNLOAD</span>
+                    </button>
                   </div>
                 </div>
               </Card>
@@ -862,127 +962,44 @@ const CallLogs = () => {
           )}
         </div>
 
-        {/* Results Counter */}
-        {filteredLogs.length > 0 && (
-          <div className="text-center py-6">
-            <p className="text-[#2C2C2C] font-bold text-lg">
-              Showing{" "}
-              <span className="text-[#f2070d] text-2xl">{filteredLogs.length}</span>{" "}
-              of{" "}
-              <span className="text-[#f2070d] text-2xl">{logs.length}</span>{" "}
-              log{filteredLogs.length !== 1 ? 's' : ''}
-            </p>
-          </div>
-        )}
-
         {/* Transcript Modal */}
         {showTranscript && selectedLog && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[80vh] overflow-hidden border-4 border-[#f2070d] shadow-2xl">
-              <div className="p-6 border-b-2 border-gray-200 bg-gray-50">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-black text-[#2C2C2C] uppercase tracking-wide">
-                    <span className="text-[#2C2C2C]">CALL TRANSCR</span>
-                    <span className="text-[#f2070d]">I</span>
-                    <span className="text-[#2C2C2C]">PT</span>
-                  </h3>
-                  <button
-                    onClick={() => setShowTranscript(false)}
-                    className="px-5 py-2 border-2 border-[#2C2C2C] text-[#2C2C2C] font-bold rounded-full hover:bg-[#2C2C2C] hover:text-white transition-all"
-                  >
-                    CLOSE
-                  </button>
-                </div>
-                <p className="text-sm text-gray-600 font-semibold mt-2">
-                  {formatDate(selectedLog.created_at)}
-                  {selectedLog.phone_number && ` • ${selectedLog.phone_number}`}
-                </p>
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl">
+              <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                <h3 className="text-2xl font-black text-[#2C2C2C] uppercase">
+                  <span className="text-[#2C2C2C]">TRANSCRI</span>
+                  <span className="text-[#f2070d]">PT</span>
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowTranscript(false);
+                    setSelectedLog(null);
+                  }}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-all"
+                >
+                  <span className="text-2xl font-bold text-[#2C2C2C]">×</span>
+                </button>
               </div>
               
               <div className="p-6 overflow-y-auto max-h-[60vh]">
                 <div className="space-y-6">
-                  {/* Call Details */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    <div className="bg-gray-50 p-3 rounded-xl border border-gray-200">
-                      <p className="text-xs text-gray-500 font-bold uppercase">Duration</p>
-                      <p className="text-lg font-black text-[#2C2C2C]">
-                        {formatDuration(selectedLog.recording_duration || selectedLog.duration)}
-                      </p>
-                    </div>
-                    <div className="bg-gray-50 p-3 rounded-xl border border-gray-200">
-                      <p className="text-xs text-gray-500 font-bold uppercase">Outcome</p>
-                      <p className="text-lg font-black text-[#2C2C2C] capitalize">
-                        {selectedLog.outcome || 'N/A'}
-                      </p>
-                    </div>
-                    <div className="bg-gray-50 p-3 rounded-xl border border-gray-200">
-                      <p className="text-xs text-gray-500 font-bold uppercase">Sentiment</p>
-                      <p className="text-lg font-black text-[#2C2C2C] capitalize">
-                        {selectedLog.sentiment || 'N/A'}
-                      </p>
-                    </div>
-                    <div className="bg-gray-50 p-3 rounded-xl border border-gray-200">
-                      <p className="text-xs text-gray-500 font-bold uppercase">Direction</p>
-                      <p className="text-lg font-black text-[#2C2C2C] capitalize">
-                        {selectedLog.direction || 'Outbound'}
-                      </p>
-                    </div>
-                  </div>
-
                   {/* Summary */}
                   <div>
-                    <h4 className="font-black text-[#2C2C2C] mb-3 uppercase text-sm tracking-wide">
-                      <span className="text-[#2C2C2C]">SUMMAR</span>
-                      <span className="text-[#f2070d]">Y</span>
-                    </h4>
-                    <p className="text-gray-700 font-semibold bg-gray-50 p-4 rounded-2xl border border-gray-200">
+                    <h4 className="font-black text-[#2C2C2C] mb-3 uppercase text-sm">SUMMARY</h4>
+                    <p className="text-gray-700 font-semibold bg-gray-50 p-4 rounded-2xl">
                       {selectedLog.summary || 'No summary available'}
                     </p>
                   </div>
-
-                  {/* Keywords */}
-                  {selectedLog.keywords && selectedLog.keywords.length > 0 && (
-                    <div>
-                      <h4 className="font-black text-[#2C2C2C] mb-3 uppercase text-sm tracking-wide">
-                        <span className="text-[#2C2C2C]">KEYWORD</span>
-                        <span className="text-[#f2070d]">S</span>
-                      </h4>
-                      <div className="flex flex-wrap gap-2">
-                        {selectedLog.keywords.map((keyword, index) => (
-                          <span
-                            key={index}
-                            className="px-3 py-1 bg-[#f2070d] text-white rounded-full text-sm font-bold"
-                          >
-                            {keyword}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                   
-                  {/* Transcript */}
+                  {/* Full Transcript */}
                   <div>
-                    <h4 className="font-black text-[#2C2C2C] mb-3 uppercase text-sm tracking-wide">
-                      <span className="text-[#2C2C2C]">FULL TRANSCR</span>
-                      <span className="text-[#f2070d]">I</span>
-                      <span className="text-[#2C2C2C]">PT</span>
-                    </h4>
-                    <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200 max-h-96 overflow-y-auto">
+                    <h4 className="font-black text-[#2C2C2C] mb-3 uppercase text-sm">FULL TRANSCRIPT</h4>
+                    <div className="bg-gray-50 p-4 rounded-2xl max-h-96 overflow-y-auto">
                       <pre className="whitespace-pre-wrap text-sm text-gray-700 font-semibold">
                         {selectedLog.transcript || 'No transcript available'}
                       </pre>
                     </div>
-                  </div>
-
-                  {/* Download Button */}
-                  <div className="flex justify-center pt-4">
-                    <button
-                      onClick={() => downloadTranscript(selectedLog)}
-                      className="px-6 py-3 bg-[#f2070d] text-white font-bold rounded-full shadow-md hover:shadow-lg transition-all flex items-center space-x-2"
-                    >
-                      <Download className="h-5 w-5" />
-                      <span>DOWNLOAD TRANSCRIPT</span>
-                    </button>
                   </div>
                 </div>
               </div>

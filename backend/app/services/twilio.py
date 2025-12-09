@@ -1,4 +1,4 @@
-# backend/app/services/twilio.py - COMPLETE FIXED VERSION with recording feature
+# backend/app/services/twilio.py - original file without bulk of calling
 
 import os
 from twilio.rest import Client

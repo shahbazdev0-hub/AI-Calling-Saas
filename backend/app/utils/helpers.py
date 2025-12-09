@@ -273,7 +273,7 @@
 #     }
 
 
-# backend/app/utils/helpers.py
+# backend/app/utils/helpers.py this is main helpers function fro i am commenting because email inbound appointment not book 
 from typing import Dict, Any, Optional
 import re
 import logging
@@ -633,3 +633,5 @@ def format_currency(amount: float, currency: str = "USD") -> str:
         return f"${amount:,.2f}"
     else:
         return f"{amount:,.2f} {currency}"
+
+

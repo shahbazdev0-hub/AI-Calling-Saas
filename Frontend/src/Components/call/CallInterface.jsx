@@ -1,6 +1,6 @@
-﻿// call/callinterface.jsx
+﻿// call/callinterface.jsx - FIXED VERSION
 import React, { useState, useEffect } from "react";
-import { Phone, PhoneOff, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
+import { Phone, PhoneOff, Mic, MicOff, Volume2, VolumeX, AlertCircle } from "lucide-react";
 import { useCall } from "../../hooks/useCall";
 import { useVoice } from "../../hooks/useVoice";
 import Button from "../ui/Button";
@@ -12,7 +12,8 @@ const CallInterface = ({ phoneNumber, agentId, onCallEnd }) => {
     callStatus, 
     duration, 
     makeCall, 
-    endCall 
+    endCall,
+    error // Added error from useCall hook
   } = useCall();
   
   const { 
@@ -73,9 +74,86 @@ const CallInterface = ({ phoneNumber, agentId, onCallEnd }) => {
     }
   };
 
+  // ✅ FIX: Helper function to safely render error messages
+  const renderErrorMessage = (error) => {
+    // If error is a string, return it directly
+    if (typeof error === 'string') {
+      return error;
+    }
+
+    // If error has a message property
+    if (error?.message) {
+      return error.message;
+    }
+
+    // If error has response data (Axios error)
+    if (error?.response?.data) {
+      const { detail } = error.response.data;
+      
+      // If detail is a string, return it
+      if (typeof detail === 'string') {
+        return detail;
+      }
+      
+      // If detail is an array of validation errors
+      if (Array.isArray(detail)) {
+        return detail.map(err => err.msg || JSON.stringify(err)).join(', ');
+      }
+      
+      // If detail is an object, stringify it
+      if (typeof detail === 'object') {
+        return JSON.stringify(detail);
+      }
+    }
+
+    // Default fallback
+    return 'An error occurred';
+  };
+
+  // ✅ FIX: Helper function to safely render validation error details
+  const renderValidationErrors = (error) => {
+    if (!error?.response?.data?.detail) {
+      return null;
+    }
+
+    const { detail } = error.response.data;
+
+    // Only render if detail is an array of error objects
+    if (Array.isArray(detail) && detail.length > 0) {
+      return (
+        <ul className="mt-2 space-y-1 text-sm text-red-600">
+          {detail.map((err, idx) => {
+            // Safely extract error message
+            const message = err.msg || err.message || JSON.stringify(err);
+            return <li key={idx}>• {message}</li>;
+          })}
+        </ul>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <Card className="max-w-md mx-auto p-6">
       <div className="flex flex-col items-center space-y-6">
+        {/* ✅ FIXED: Error Display Section - Prevents React rendering errors */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 w-full">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-red-600" />
+              <div className="flex-1">
+                <h4 className="font-semibold text-red-900">Error</h4>
+                <p className="text-sm text-red-700">
+                  {renderErrorMessage(error)}
+                </p>
+                {/* ✅ FIX: Safely render validation errors */}
+                {renderValidationErrors(error)}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Call Status */}
         <div className="text-center">
           <div className={`text-2xl font-bold ${getStatusColor()}`}>

@@ -1,22 +1,4 @@
-﻿// // frontend/src/main.jsx - MAKE SURE AuthProvider IS IMPORTED
-// import React from "react"
-// import ReactDOM from "react-dom/client"
-// import { BrowserRouter } from "react-router-dom"
-// import App from "./App.jsx"
-// import { AuthProvider } from "./contexts/AuthContext.jsx" // CRITICAL IMPORT
-// import './index.css'
-
-// ReactDOM.createRoot(document.getElementById('root')).render(
-//   <React.StrictMode>
-//     <BrowserRouter>
-//       <AuthProvider>
-//         <App />
-//       </AuthProvider>
-//     </BrowserRouter>
-//   </React.StrictMode>,
-// )
-
-// frontend/src/main.jsx
+﻿// frontend/src/main.jsx orginal file 
 import React from "react"
 import ReactDOM from "react-dom/client"
 import { BrowserRouter } from "react-router-dom"
@@ -52,3 +34,5 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     </BrowserRouter>
   </React.StrictMode>,
 )
+
+

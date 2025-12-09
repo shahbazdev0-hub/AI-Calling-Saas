@@ -1,227 +1,135 @@
-# backend/app/services/call_handler.py - ✅ FIXED WITH RECORDING HANDLING
+# backend/app/services/call_handler.py - ✅ COMPLETE WITH SINGLETON INSTANCE
 
 import os
 from datetime import datetime
 from typing import Dict, Optional, List
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from bson import ObjectId
+import logging
 
-from .twilio import twilio_service
-from .ai_agent import ai_agent_service
+from app.database import get_database
+from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class CallHandlerService:
-    def __init__(self, db: AsyncIOMotorDatabase):
-        self.db = db
-        self.twilio = twilio_service
-        self.ai_agent = ai_agent_service
+    """
+    Call Handler Service
+    Manages call lifecycle and integration with Twilio
+    """
+    
+    def __init__(self):
+        """Initialize without database - will be set later"""
+        self.db = None
+        self._twilio_service = None
+        self._initialized = False
+        logger.info("📞 CallHandlerService initialized")
+    
+    async def initialize(self):
+        """Initialize with database connection"""
+        if not self._initialized:
+            self.db = await get_database()
+            
+            # Import here to avoid circular imports
+            from app.services.twilio import twilio_service
+            self._twilio_service = twilio_service
+            
+            self._initialized = True
+            logger.info("✅ CallHandlerService ready")
+    
+    async def ensure_initialized(self):
+        """Ensure service is initialized before use"""
+        if not self._initialized:
+            await self.initialize()
 
     async def initiate_call(
         self,
-        user_id: str,
         to_number: str,
-        from_number: Optional[str] = None,
-        agent_id: Optional[str] = None
+        agent_id: Optional[str] = None,
+        call_id: Optional[str] = None,
+        from_number: Optional[str] = None
     ) -> Dict:
-        """Initiate a new outbound call with Twilio integration"""
+        """
+        Initiate a new outbound call with Twilio
+        
+        Args:
+            to_number: Phone number to call
+            agent_id: Voice agent ID (optional)
+            call_id: Existing call ID from database (optional)
+            from_number: Override Twilio number (optional)
+            
+        Returns:
+            Dict with call information
+        """
         try:
-            print(f"CallHandler: Initiating call to {to_number}...")
-            print(f"User ID: {user_id}")
-            print(f"Agent ID: {agent_id}")
+            await self.ensure_initialized()
+            
+            logger.info(f"📞 Initiating call to {to_number}")
+            logger.info(f"   Agent ID: {agent_id}")
+            logger.info(f"   Call ID: {call_id}")
+            
+            # Use configured Twilio number if not provided
+            if not from_number:
+                from_number = settings.TWILIO_PHONE_NUMBER
             
             # Make the call via Twilio
-            call_result = self.twilio.make_call(
+            call_result = self._twilio_service.make_call(
                 to_number=to_number,
                 from_number=from_number
             )
             
-            print(f"Twilio API response: {call_result}")
+            logger.info(f"📱 Twilio response: {call_result}")
             
-            if not call_result["success"]:
-                print(f"Twilio call failed: {call_result.get('error')}")
+            if not call_result.get("success"):
+                logger.error(f"❌ Twilio call failed: {call_result.get('error')}")
                 return call_result
             
-            # ✅ FIXED: Store correct phone numbers
-            twilio_number = from_number or self.twilio.phone_number
+            # Get Twilio call SID
+            twilio_call_sid = call_result.get("call_sid")
             
-            # Create call record in database
-            call_data = {
-                "user_id": user_id,
-                "direction": "outbound",
-                "from_number": twilio_number,
-                "to_number": to_number,
-                "phone_number": to_number,  # ✅ Customer phone for outbound
-                "status": "initiated",
-                "twilio_call_sid": call_result["call_sid"],
-                "call_sid": call_result["call_sid"],  # ✅ Also store in legacy field
-                "agent_id": ObjectId(agent_id) if agent_id else None,
-                "started_at": datetime.utcnow(),
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
-                # ✅ NEW: Initialize recording fields
-                "recording_url": None,
-                "recording_sid": None,
-                "recording_duration": 0
-            }
+            # Update call record if call_id provided
+            if call_id and ObjectId.is_valid(call_id):
+                await self.db.calls.update_one(
+                    {"_id": ObjectId(call_id)},
+                    {
+                        "$set": {
+                            "twilio_call_sid": twilio_call_sid,
+                            "call_sid": twilio_call_sid,
+                            "status": "ringing",
+                            "from_number": from_number,
+                            "to_number": to_number,
+                            "updated_at": datetime.utcnow()
+                        }
+                    }
+                )
+                logger.info(f"✅ Updated call {call_id} with Twilio SID")
             
-            result = await self.db.calls.insert_one(call_data)
-            call_id = str(result.inserted_id)
-            
-            print(f"Call record created in database: {call_id}")
-            print(f"✅ Stored customer phone: {to_number}")
-            
-            # Create conversation record
-            conversation_data = {
-                "call_id": result.inserted_id,
-                "user_id": user_id,
-                "agent_id": ObjectId(agent_id) if agent_id else None,
-                "messages": [],
-                "metadata": {
-                    "appointment_data": {}
-                },
-                "started_at": datetime.utcnow(),
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
-            }
-            
-            conv_result = await self.db.conversations.insert_one(conversation_data)
-            print(f"Conversation record created for call: {call_id}")
-            
-            return {
-                "success": True,
-                "call_id": call_id,
-                "call_sid": call_result["call_sid"],
-                "status": call_result["status"]
-            }
+            return call_result
             
         except Exception as e:
-            print(f"Error initiating call: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"❌ Error initiating call: {e}", exc_info=True)
             return {
                 "success": False,
                 "error": str(e)
             }
-
-    async def handle_incoming_call(
-        self,
-        call_sid: str,
-        from_number: str,
-        to_number: str
-    ) -> Dict:
-        """✅ FIXED: Handle incoming call with correct phone storage"""
-        try:
-            print(f"Handling incoming call: {call_sid} from {from_number}")
-            
-            # Check if call already exists
-            existing_call = await self.db.calls.find_one({"twilio_call_sid": call_sid})
-            
-            if existing_call:
-                print(f"Found existing call record: {existing_call['_id']}")
-                return existing_call
-            
-            # ✅ FIXED: Determine direction and customer phone
-            twilio_number = os.getenv("TWILIO_PHONE_NUMBER", "")
-            
-            if from_number == twilio_number:
-                # Outbound call
-                direction = "outbound"
-                customer_phone = to_number
-            else:
-                # Inbound call
-                direction = "inbound"
-                customer_phone = from_number
-            
-            # Create new call record
-            call_data = {
-                "direction": direction,
-                "from_number": from_number,
-                "to_number": to_number,
-                "phone_number": customer_phone,  # ✅ FIXED: Store customer phone
-                "status": "initiated",
-                "twilio_call_sid": call_sid,
-                "call_sid": call_sid,  # ✅ Also store in legacy field
-                "started_at": datetime.utcnow(),
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
-                # ✅ NEW: Initialize recording fields
-                "recording_url": None,
-                "recording_sid": None,
-                "recording_duration": 0
-            }
-            
-            result = await self.db.calls.insert_one(call_data)
-            call_data["_id"] = result.inserted_id
-            
-            print(f"✅ Call record created - Direction: {direction}, Customer: {customer_phone}")
-            
-            return call_data
-            
-        except Exception as e:
-            print(f"Error handling incoming call: {e}")
-            import traceback
-            traceback.print_exc()
-            return {}
-
-    async def process_user_input(
-        self,
-        call_sid: str,
-        user_input: str,
-        conversation_id: str,
-        agent_config: dict
-    ) -> str:
-        """
-        Process user speech input and generate AI response
-        
-        Args:
-            call_sid: Twilio call SID
-            user_input: User's speech text
-            conversation_id: Conversation ID
-            agent_config: Agent configuration with workflow settings
-            
-        Returns:
-            AI-generated response text
-        """
-        try:
-            print(f"🎤 Processing user input: '{user_input}'")
-            print(f"📋 Conversation ID: {conversation_id}")
-            print(f"🤖 Agent: {agent_config.get('name', 'Unknown')}")
-            
-            # Get the call record to get call_id
-            call_record = await self.db.calls.find_one({"twilio_call_sid": call_sid})
-            if not call_record:
-                return "I apologize, but I'm having trouble accessing call information."
-
-            call_id = str(call_record["_id"])
-            
-            # Use the existing process_message method
-            response = await self.ai_agent.process_message(
-                user_input=user_input,
-                call_id=call_id,
-                agent_config=agent_config
-            )
-            
-            print(f"✅ Generated response: {response[:100]}...")
-            return response
-            
-        except Exception as e:
-            print(f"❌ Error processing user input: {e}")
-            import traceback
-            traceback.print_exc()
-            return "I apologize, but I'm having trouble understanding. Could you please rephrase that?"
 
     async def update_call_status(
         self,
         call_sid: str,
         status: str,
         duration: Optional[int] = None
-    ) -> bool:
-        """Update call status in database"""
+    ):
+        """
+        Update call status in database
+        
+        Args:
+            call_sid: Twilio call SID
+            status: New status (initiated, ringing, in-progress, completed, failed)
+            duration: Call duration in seconds (optional)
+        """
         try:
-            print(f"Updating call status:")
-            print(f"   Call SID: {call_sid}")
-            print(f"   New Status: {status}")
-            print(f"   Duration: {duration} seconds")
+            await self.ensure_initialized()
             
             update_data = {
                 "status": status,
@@ -233,55 +141,39 @@ class CallHandlerService:
             
             if status == "completed":
                 update_data["ended_at"] = datetime.utcnow()
-                
-                # Also update conversation status
-                call = await self.db.calls.find_one({"twilio_call_sid": call_sid})
-                if call:
-                    conv_result = await self.db.conversations.update_one(
-                        {"call_id": call["_id"]},
-                        {
-                            "$set": {
-                                "ended_at": datetime.utcnow(),
-                                "updated_at": datetime.utcnow()
-                            }
-                        }
-                    )
-                    print(f"Conversation ended (matched: {conv_result.matched_count})")
             
             result = await self.db.calls.update_one(
                 {"twilio_call_sid": call_sid},
                 {"$set": update_data}
             )
             
-            print(f"Call status updated (matched: {result.matched_count})")
-            return result.matched_count > 0
+            if result.modified_count > 0:
+                logger.info(f"✅ Updated call status: {call_sid} -> {status}")
+            else:
+                logger.warning(f"⚠️ Call not found: {call_sid}")
             
         except Exception as e:
-            print(f"Error updating call status: {e}")
-            return False
+            logger.error(f"❌ Error updating call status: {e}")
 
-    # ✅ NEW: Save recording information
-    async def save_recording_info(
+    async def save_recording(
         self,
         call_sid: str,
-        recording_sid: str,
         recording_url: str,
-        recording_duration: int
-    ) -> bool:
+        recording_sid: str,
+        recording_duration: int = 0
+    ):
         """
-        ✅ NEW: Save recording information to call record
-        This is called by the recording webhook in voice.py
+        Save recording information to database
+        
+        Args:
+            call_sid: Twilio call SID
+            recording_url: URL to access recording
+            recording_sid: Twilio recording SID
+            recording_duration: Duration in seconds
         """
         try:
-            print(f"\n{'='*80}")
-            print(f"💾 SAVING RECORDING INFO:")
-            print(f"   Call SID: {call_sid}")
-            print(f"   Recording SID: {recording_sid}")
-            print(f"   Recording URL: {recording_url}")
-            print(f"   Duration: {recording_duration} seconds")
-            print(f"{'='*80}\n")
+            await self.ensure_initialized()
             
-            # Update the call record with recording information
             result = await self.db.calls.update_one(
                 {"twilio_call_sid": call_sid},
                 {
@@ -294,53 +186,89 @@ class CallHandlerService:
                 }
             )
             
-            if result.matched_count > 0:
-                print(f"✅ Recording info saved successfully")
-                return True
+            if result.modified_count > 0:
+                logger.info(f"✅ Recording saved for call {call_sid}")
             else:
-                print(f"⚠️ No call found with SID: {call_sid}")
-                return False
-                
-        except Exception as e:
-            print(f"❌ Error saving recording info: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
-
-    async def save_conversation_turn(
-        self,
-        call_id: str,
-        role: str,
-        content: str
-    ) -> bool:
-        """
-        ⚠️ DEPRECATED: This method should NOT be called from voice.py
-        Messages are saved internally by ai_agent_service
-        """
-        print(f"⚠️ WARNING: save_conversation_turn called but messages already saved by ai_agent")
-        return True
-
-    async def get_conversation(self, call_id: str) -> Optional[Dict]:
-        """Get conversation record"""
-        try:
-            if not ObjectId.is_valid(call_id):
-                return None
+                logger.warning(f"⚠️ Call not found for recording: {call_sid}")
             
-            conversation = await self.db.conversations.find_one({
-                "call_id": ObjectId(call_id)
+        except Exception as e:
+            logger.error(f"❌ Error saving recording: {e}")
+
+    async def get_call_by_sid(self, call_sid: str) -> Optional[Dict]:
+        """
+        Get call record by Twilio call SID
+        
+        Args:
+            call_sid: Twilio call SID
+            
+        Returns:
+            Call record or None
+        """
+        try:
+            await self.ensure_initialized()
+            
+            call = await self.db.calls.find_one({
+                "twilio_call_sid": call_sid
             })
             
-            return conversation
+            return call
             
         except Exception as e:
-            print(f"Error getting conversation: {e}")
+            logger.error(f"❌ Error fetching call: {e}")
             return None
 
+    async def end_call(self, call_sid: str):
+        """
+        End an active call via Twilio
+        
+        Args:
+            call_sid: Twilio call SID
+        """
+        try:
+            await self.ensure_initialized()
+            
+            # End call via Twilio
+            result = self._twilio_service.end_call(call_sid)
+            
+            if result.get("success"):
+                # Update database
+                await self.update_call_status(call_sid, "completed")
+                logger.info(f"✅ Call ended: {call_sid}")
+            else:
+                logger.error(f"❌ Failed to end call: {result.get('error')}")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ Error ending call: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
 
-def get_call_handler(db: AsyncIOMotorDatabase) -> CallHandlerService:
-    """Factory function to create CallHandlerService instance"""
-    return CallHandlerService(db)
+
+# ============================================
+# SINGLETON INSTANCE - THIS WAS MISSING!
+# ============================================
+
+call_handler_service = CallHandlerService()
 
 
+# ============================================
+# DEPENDENCY FUNCTION
+# ============================================
 
-
+def get_call_handler(db: AsyncIOMotorDatabase = None) -> CallHandlerService:
+    """
+    Get CallHandlerService instance
+    
+    Args:
+        db: Database connection (optional, will use global if not provided)
+        
+    Returns:
+        CallHandlerService instance
+    """
+    if db and call_handler_service.db is None:
+        call_handler_service.db = db
+    
+    return call_handler_service

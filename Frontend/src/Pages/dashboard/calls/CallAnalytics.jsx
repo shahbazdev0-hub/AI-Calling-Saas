@@ -1,4 +1,4 @@
-﻿// // calls/CallAnalytics.jsx this is real data only change this col,or scheme according to mock data
+﻿// // calls/CallAnalytics.jsx this is real data 
 // import React, { useState, useEffect } from "react";
 // import { TrendingUp, Phone, Clock, Target, Calendar } from "lucide-react";
 // import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
@@ -339,7 +339,7 @@ const mockSentimentData = [
 ];
 
 const mockStats = {
-  total_calls: 313,
+  total_calls: 298,
   completed_calls: 268,
   average_duration: 245,
 };

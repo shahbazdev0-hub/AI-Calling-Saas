@@ -321,7 +321,7 @@ import workflowAPI from './workflow';
 // Create axios instance with base configuration
 const api = axios.create({
   baseURL: config.API_BASE_URL,
-  timeout: 30000,
+  timeout: 60000,
   headers: {
     'Content-Type': 'application/json',
   },

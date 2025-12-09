@@ -1,5 +1,6 @@
-﻿// // 1. src/Components/ui/Card.jsx
-// // ===========================================
+﻿// // frontend/src/Components/ui/Card.jsx
+// import React from "react";
+
 // const Card = ({ 
 //   children, 
 //   className = '', 
@@ -14,7 +15,7 @@
 //     small: 'p-4',
 //     medium: 'p-6',
 //     large: 'p-8'
-//   }
+//   };
 
 //   const shadowClasses = {
 //     none: '',
@@ -22,43 +23,49 @@
 //     medium: 'shadow',
 //     large: 'shadow-lg',
 //     xl: 'shadow-xl'
-//   }
+//   };
 
-//   const cardClasses = `bg-white rounded-lg ${paddingClasses[padding]} ${shadowClasses[shadow]} ${border ? 'border border-gray-200' : ''} ${hover ? 'hover:shadow-lg transition-shadow duration-200' : ''} ${className}`
+//   const cardClasses = `bg-white rounded-lg ${paddingClasses[padding]} ${shadowClasses[shadow]} ${
+//     border ? 'border border-gray-200' : ''
+//   } ${
+//     hover ? 'hover:shadow-lg transition-shadow duration-200' : ''
+//   } ${className}`;
 
-//   return <div className={cardClasses} {...props}>{children}</div>
-// }
+//   return (
+//     <div className={cardClasses} {...props}>
+//       {children}
+//     </div>
+//   );
+// };
 
 // // Card sub-components
 // const CardHeader = ({ children, className = '' }) => (
 //   <div className={`mb-4 ${className}`}>{children}</div>
-// )
+// );
 
 // const CardTitle = ({ children, className = '' }) => (
 //   <h3 className={`text-lg font-semibold text-gray-900 ${className}`}>{children}</h3>
-// )
+// );
 
 // const CardDescription = ({ children, className = '' }) => (
 //   <p className={`text-sm text-gray-600 ${className}`}>{children}</p>
-// )
+// );
 
 // const CardContent = ({ children, className = '' }) => (
 //   <div className={className}>{children}</div>
-// )
+// );
 
 // const CardFooter = ({ children, className = '' }) => (
 //   <div className={`mt-4 pt-4 border-t border-gray-200 ${className}`}>{children}</div>
-// )
+// );
 
-// Card.Header = CardHeader
-// Card.Title = CardTitle
-// Card.Description = CardDescription
-// Card.Content = CardContent
-// Card.Footer = CardFooter
+// Card.Header = CardHeader;
+// Card.Title = CardTitle;
+// Card.Description = CardDescription;
+// Card.Content = CardContent;
+// Card.Footer = CardFooter;
 
-// export default Card
-
-
+// export default Card;
 
 
 // frontend/src/Components/ui/Card.jsx
@@ -82,16 +89,16 @@ const Card = ({
 
   const shadowClasses = {
     none: '',
-    small: 'shadow-sm',
-    medium: 'shadow',
-    large: 'shadow-lg',
-    xl: 'shadow-xl'
+    small: 'shadow-sm dark:shadow-gray-900/20',
+    medium: 'shadow dark:shadow-gray-900/30',
+    large: 'shadow-lg dark:shadow-gray-900/40',
+    xl: 'shadow-xl dark:shadow-gray-900/50'
   };
 
-  const cardClasses = `bg-white rounded-lg ${paddingClasses[padding]} ${shadowClasses[shadow]} ${
-    border ? 'border border-gray-200' : ''
+  const cardClasses = `bg-white dark:bg-gray-800 rounded-lg ${paddingClasses[padding]} ${shadowClasses[shadow]} ${
+    border ? 'border border-gray-200 dark:border-gray-700' : ''
   } ${
-    hover ? 'hover:shadow-lg transition-shadow duration-200' : ''
+    hover ? 'hover:shadow-lg dark:hover:shadow-gray-900/50 transition-shadow duration-200' : ''
   } ${className}`;
 
   return (
@@ -107,11 +114,11 @@ const CardHeader = ({ children, className = '' }) => (
 );
 
 const CardTitle = ({ children, className = '' }) => (
-  <h3 className={`text-lg font-semibold text-gray-900 ${className}`}>{children}</h3>
+  <h3 className={`text-lg font-semibold text-gray-900 dark:text-gray-100 ${className}`}>{children}</h3>
 );
 
 const CardDescription = ({ children, className = '' }) => (
-  <p className={`text-sm text-gray-600 ${className}`}>{children}</p>
+  <p className={`text-sm text-gray-600 dark:text-gray-400 ${className}`}>{children}</p>
 );
 
 const CardContent = ({ children, className = '' }) => (
@@ -119,7 +126,7 @@ const CardContent = ({ children, className = '' }) => (
 );
 
 const CardFooter = ({ children, className = '' }) => (
-  <div className={`mt-4 pt-4 border-t border-gray-200 ${className}`}>{children}</div>
+  <div className={`mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 ${className}`}>{children}</div>
 );
 
 Card.Header = CardHeader;

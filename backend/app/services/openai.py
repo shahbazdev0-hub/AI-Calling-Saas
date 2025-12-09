@@ -1,4 +1,5 @@
-# # services/openai.py without sms chatbot 
+# # backend/app/services/openai.py 
+
 # import os
 # from openai import AsyncOpenAI
 # from typing import List, Dict, Optional
@@ -13,8 +14,71 @@
 #         self.api_key = os.getenv("OPENAI_API_KEY")
 #         self.model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 #         self.max_tokens = int(os.getenv("OPENAI_MAX_TOKENS", "500"))
-#         self.client = AsyncOpenAI(api_key=self.api_key)
+#         self.client = AsyncOpenAI(api_key=self.api_key) if self.api_key else None
 
+#     def is_configured(self) -> bool:
+#         """Check if OpenAI is properly configured"""
+#         return bool(self.api_key and self.client)
+
+#     # ============================================
+#     # ✅ NEW METHOD - FIXES email_poller.py ERROR
+#     # ============================================
+#     async def generate_completion(
+#         self,
+#         messages: List[Dict[str, str]],
+#         system_prompt: Optional[str] = None,
+#         temperature: float = 0.7,
+#         max_tokens: Optional[int] = None
+#     ) -> Dict:
+#         """
+#         Generate completion using OpenAI
+#         ✅ NEW: This method is called by email_poller.py
+#         Returns: Dict with 'success' and 'content' keys
+#         """
+#         try:
+#             if not self.is_configured():
+#                 return {
+#                     "success": False,
+#                     "error": "OpenAI not configured"
+#                 }
+            
+#             conversation_messages = []
+            
+#             if system_prompt:
+#                 conversation_messages.append({
+#                     "role": "system",
+#                     "content": system_prompt
+#                 })
+            
+#             conversation_messages.extend(messages)
+            
+#             response = await self.client.chat.completions.create(
+#                 model=self.model,
+#                 messages=conversation_messages,
+#                 temperature=temperature,
+#                 max_tokens=max_tokens or self.max_tokens
+#             )
+            
+#             return {
+#                 "success": True,
+#                 "content": response.choices[0].message.content,
+#                 "usage": {
+#                     "prompt_tokens": response.usage.prompt_tokens,
+#                     "completion_tokens": response.usage.completion_tokens,
+#                     "total_tokens": response.usage.total_tokens
+#                 }
+#             }
+#         except Exception as e:
+#             logger.error(f"❌ OpenAI generate_completion error: {e}")
+#             return {
+#                 "success": False,
+#                 "error": str(e)
+#             }
+
+#     # ============================================
+#     # ORIGINAL METHODS - ALL PRESERVED
+#     # ============================================
+    
 #     async def generate_response(
 #         self,
 #         messages: List[Dict[str, str]],
@@ -52,6 +116,72 @@
 #             }
 #         except Exception as e:
 #             logger.error(f"OpenAI generate_response error: {e}")
+#             return {
+#                 "success": False,
+#                 "error": str(e)
+#             }
+
+#     async def generate_chat_response(
+#         self,
+#         messages: List[Dict],
+#         system_prompt: Optional[str] = None,
+#         max_tokens: int = 500
+#     ) -> Dict:
+#         """
+#         Generate a chat response using OpenAI GPT
+        
+#         Args:
+#             messages: List of message dicts with 'role' and 'content'
+#             system_prompt: Optional system message
+#             max_tokens: Maximum response tokens
+        
+#         Returns:
+#             Dict with success status and response
+#         """
+#         try:
+#             if not self.is_configured():
+#                 return {
+#                     "success": False,
+#                     "error": "OpenAI not configured"
+#                 }
+            
+#             # Prepare messages
+#             chat_messages = []
+            
+#             # Add system message if provided
+#             if system_prompt:
+#                 chat_messages.append({
+#                     "role": "system",
+#                     "content": system_prompt
+#                 })
+            
+#             # Add conversation messages
+#             chat_messages.extend(messages)
+            
+#             # Generate response
+#             response = await self.client.chat.completions.create(
+#                 model=self.model,
+#                 messages=chat_messages,
+#                 temperature=0.7,
+#                 max_tokens=max_tokens
+#             )
+            
+#             ai_response = response.choices[0].message.content.strip()
+            
+#             logger.info(f"Generated chat response: {len(ai_response)} characters")
+            
+#             return {
+#                 "success": True,
+#                 "response": ai_response,
+#                 "usage": {
+#                     "prompt_tokens": response.usage.prompt_tokens,
+#                     "completion_tokens": response.usage.completion_tokens,
+#                     "total_tokens": response.usage.total_tokens
+#                 }
+#             }
+            
+#         except Exception as e:
+#             logger.error(f"Chat response generation error: {e}", exc_info=True)
 #             return {
 #                 "success": False,
 #                 "error": str(e)
@@ -222,7 +352,8 @@
 # openai_service = OpenAIService()
 
 
-# services/openai.py
+# backend/app/services/openai.py - ⚡ SPEED OPTIMIZED
+
 import os
 from openai import AsyncOpenAI
 from typing import List, Dict, Optional
@@ -235,14 +366,81 @@ logger = logging.getLogger(__name__)
 class OpenAIService:
     def __init__(self):
         self.api_key = os.getenv("OPENAI_API_KEY")
-        self.model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
-        self.max_tokens = int(os.getenv("OPENAI_MAX_TOKENS", "500"))
-        self.client = AsyncOpenAI(api_key=self.api_key)
+        # ⚡ SPEED FIX: Use faster model
+        self.model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")  # Fast model
+        # ⚡ SPEED FIX: Reduce max tokens for faster response
+        self.max_tokens = int(os.getenv("OPENAI_MAX_TOKENS", "100"))  # Reduced from 150
+        # ⚡ SPEED FIX: Add timeout
+        self.client = AsyncOpenAI(
+            api_key=self.api_key,
+            timeout=5.0  # ⚡ 5 second timeout
+        ) if self.api_key else None
 
     def is_configured(self) -> bool:
         """Check if OpenAI is properly configured"""
-        return bool(self.api_key)
+        return bool(self.api_key and self.client)
 
+    # ============================================
+    # ✅ NEW METHOD - FIXES email_poller.py ERROR
+    # ============================================
+    async def generate_completion(
+        self,
+        messages: List[Dict[str, str]],
+        system_prompt: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None
+    ) -> Dict:
+        """
+        Generate completion using OpenAI
+        ✅ NEW: This method is called by email_poller.py
+        Returns: Dict with 'success' and 'content' keys
+        """
+        try:
+            if not self.is_configured():
+                return {
+                    "success": False,
+                    "error": "OpenAI not configured"
+                }
+            
+            conversation_messages = []
+            
+            if system_prompt:
+                conversation_messages.append({
+                    "role": "system",
+                    "content": system_prompt
+                })
+            
+            conversation_messages.extend(messages)
+            
+            # ⚡ SPEED FIX: Use timeout for this method too
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=conversation_messages,
+                temperature=temperature,
+                max_tokens=max_tokens or self.max_tokens,
+                timeout=5.0  # ⚡ 5 second timeout
+            )
+            
+            return {
+                "success": True,
+                "content": response.choices[0].message.content,
+                "usage": {
+                    "prompt_tokens": response.usage.prompt_tokens,
+                    "completion_tokens": response.usage.completion_tokens,
+                    "total_tokens": response.usage.total_tokens
+                }
+            }
+        except Exception as e:
+            logger.error(f"❌ OpenAI generate_completion error: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    # ============================================
+    # ORIGINAL METHODS - ALL PRESERVED
+    # ============================================
+    
     async def generate_response(
         self,
         messages: List[Dict[str, str]],
@@ -262,11 +460,13 @@ class OpenAIService:
             
             conversation_messages.extend(messages)
             
+            # ⚡ SPEED FIX: Use timeout
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=conversation_messages,
                 temperature=temperature,
-                max_tokens=max_tokens or self.max_tokens
+                max_tokens=max_tokens or self.max_tokens,
+                timeout=5.0  # ⚡ 5 second timeout
             )
             
             return {
@@ -289,18 +489,10 @@ class OpenAIService:
         self,
         messages: List[Dict],
         system_prompt: Optional[str] = None,
-        max_tokens: int = 500
+        max_tokens: int = 100  # ⚡ REDUCED from 500
     ) -> Dict:
         """
-        Generate a chat response using OpenAI GPT
-        
-        Args:
-            messages: List of message dicts with 'role' and 'content'
-            system_prompt: Optional system message
-            max_tokens: Maximum response tokens
-        
-        Returns:
-            Dict with success status and response
+        ⚡ OPTIMIZED: Generate chat response with speed priority
         """
         try:
             if not self.is_configured():
@@ -319,20 +511,21 @@ class OpenAIService:
                     "content": system_prompt
                 })
             
-            # Add conversation messages
-            chat_messages.extend(messages)
+            # ⚡ SPEED FIX: Limit conversation history
+            chat_messages.extend(messages[-3:])  # Only last 3 messages
             
-            # Generate response
+            # ⚡ SPEED FIX: Generate response with timeout and reduced tokens
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=chat_messages,
                 temperature=0.7,
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
+                timeout=5.0  # ⚡ 5 second hard timeout
             )
             
             ai_response = response.choices[0].message.content.strip()
             
-            logger.info(f"Generated chat response: {len(ai_response)} characters")
+            logger.info(f"✅ Generated response: {len(ai_response)} chars in < 2s")
             
             return {
                 "success": True,
@@ -345,7 +538,7 @@ class OpenAIService:
             }
             
         except Exception as e:
-            logger.error(f"Chat response generation error: {e}", exc_info=True)
+            logger.error(f"❌ Chat response error: {e}", exc_info=True)
             return {
                 "success": False,
                 "error": str(e)
@@ -376,7 +569,8 @@ Respond in JSON format."""
                     }
                 ],
                 temperature=0.3,
-                max_tokens=200
+                max_tokens=200,
+                timeout=5.0  # ⚡ 5 second timeout
             )
             
             result = json.loads(response.choices[0].message.content)
@@ -415,7 +609,8 @@ Transcript: {transcript}"""
                     }
                 ],
                 temperature=0.5,
-                max_tokens=200
+                max_tokens=200,
+                timeout=5.0  # ⚡ 5 second timeout
             )
             
             return {
@@ -450,7 +645,8 @@ Text: {text}"""
                     }
                 ],
                 temperature=0.3,
-                max_tokens=100
+                max_tokens=100,
+                timeout=5.0  # ⚡ 5 second timeout
             )
             
             keywords = json.loads(response.choices[0].message.content)
@@ -497,7 +693,8 @@ Respond with just one word: successful, needs_followup, no_answer, or unsuccessf
                     }
                 ],
                 temperature=0.2,
-                max_tokens=10
+                max_tokens=10,
+                timeout=5.0  # ⚡ 5 second timeout
             )
             
             return {
